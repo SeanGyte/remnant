@@ -1,7 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+}
+
+// Load local.properties for API keys
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+// Load keystore.properties for signing
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -15,10 +29,19 @@ android {
         versionCode = 2
         versionName = "1.1.0"
 
-        // Cloud TTS API key from local.properties (not committed to git)
-        val localProps = rootProject.file("local.properties")
-        val props = java.util.Properties().apply { if (localProps.exists()) load(localProps.inputStream()) }
-        buildConfigField("String", "GOOGLE_CLOUD_TTS_KEY", "\"${props.getProperty("GOOGLE_CLOUD_TTS_KEY", "")}\"")
+        buildConfigField("String", "GOOGLE_CLOUD_TTS_KEY", "\"${localProps.getProperty("GOOGLE_CLOUD_TTS_KEY", "")}\"")
+    }
+
+    signingConfigs {
+        create("release") {
+            val ksFile = keystoreProps.getProperty("storeFile")
+            if (ksFile != null) {
+                storeFile = file(ksFile)
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -29,6 +52,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false

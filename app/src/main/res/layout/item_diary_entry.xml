@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <!-- Divider at bottom of each entry -->
+    <View
+        android:id="@+id/dividerTop"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
+
+    <!-- Collapsed header row (always visible) -->
+    <LinearLayout
+        android:id="@+id/headerRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <!-- Chevron -->
+        <TextView
+            android:id="@+id/textChevron"
+            android:layout_width="16dp"
+            android:layout_height="wrap_content"
+            android:text="\u25B6"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary"
+            android:gravity="center"
+            android:layout_marginEnd="12dp" />
+
+        <!-- Date + time -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/textEntryDay"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold"
+                tools:text="Sunday, 23 March" />
+
+            <TextView
+                android:id="@+id/textEntryTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginTop="1dp"
+                tools:text="7:05 AM" />
+
+        </LinearLayout>
+
+        <!-- Duration -->
+        <TextView
+            android:id="@+id/textEntryDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginStart="8dp"
+            tools:text="2m 14s" />
+
+        <!-- Fragment indicator (small red dot) -->
+        <View
+            android:id="@+id/fragmentIndicator"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_fragment_indicator"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+    </LinearLayout>
+
+    <!-- Expandable body -->
+    <LinearLayout
+        android:id="@+id/expandedBody"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Transcript -->
+        <TextView
+            android:id="@+id/textTranscript"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="48dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="16dp"
+            android:textSize="14sp"
+            android:textColor="@color/text_primary"
+            android:lineSpacingMultiplier="1.6"
+            tools:text="I was in my old house..." />
+
+        <!-- Fragment note (shown for fragments) -->
+        <TextView
+            android:id="@+id/textFragmentNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="48dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="12dp"
+            android:textSize="12sp"
+            android:textColor="@color/error"
+            android:textStyle="italic"
+            android:visibility="gone" />
+
+        <!-- Action buttons row -->
+        <LinearLayout
+            android:id="@+id/actionButtons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="48dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="16dp">
+
+            <!-- Play audio / Audio expired -->
+            <TextView
+                android:id="@+id/btnPlayAudio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_action_button_accent"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:textSize="12sp"
+                android:textColor="@color/accent"
+                android:visibility="gone"
+                tools:text="Play audio" />
+
+            <!-- Audio expired label -->
+            <TextView
+                android:id="@+id/btnAudioExpired"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_action_button"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:textSize="12sp"
+                android:textColor="#FF444444"
+                android:text="Audio expired"
+                android:visibility="gone" />
+
+            <!-- Edit button -->
+            <TextView
+                android:id="@+id/btnEdit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_action_button"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:text="Edit"
+                android:layout_marginStart="12dp" />
+
+            <!-- Try again button (fragments < 48h) -->
+            <TextView
+                android:id="@+id/btnTryAgain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_action_button_accent"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:textSize="12sp"
+                android:textColor="@color/accent"
+                android:text="Try again"
+                android:layout_marginStart="12dp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

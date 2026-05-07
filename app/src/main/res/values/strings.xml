@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Remnant</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_tagline">Catch your dreams before they fade.</string>
+    <string name="onboarding_explainer">Set your alarm. When you wake up, just talk. Remnant captures your dreams before they slip away.</string>
+    <string name="onboarding_name_hint">What should we call you?</string>
+    <string name="onboarding_alarm_label">When do you wake up?</string>
+    <string name="onboarding_start">Start Capturing Dreams</string>
+
+    <!-- Alarm -->
+    <string name="alarm_waking">Good morning</string>
+    <string name="alarm_dismiss">I\'m Awake</string>
+    <string name="alarm_skip">Skip dream capture</string>
+    <string name="alarm_preparing">Take a moment\u2026 what do you remember?</string>
+    <string name="alarm_listening">Listening\u2026</string>
+
+    <!-- Alarm - Companion Mode -->
+    <string name="companion_listening">Say something if you\'re awake\u2026</string>
+    <string name="companion_detected">Good, you\'re awake.</string>
+    <string name="companion_wake_check">Are you awake, %1$s?</string>
+
+    <!-- Journal -->
+    <string name="journal_empty_title">No dreams yet</string>
+    <string name="journal_empty_subtitle">Your alarm will ask what you dreamed about.\nJust talk. We\'ll handle the rest.</string>
+
+    <!-- Detail -->
+    <string name="detail_transcription_hint">Edit your dream\u2026</string>
+
+    <!-- Notifications -->
+    <string name="notification_capturing">Capturing your dream\u2026</string>
+</resources>

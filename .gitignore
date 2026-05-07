@@ -1,0 +1,27 @@
+# Built APKs and outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Local config (contains API keys)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Signing
+*.jks
+*.keystore
+keystore.properties
+
+# Generated
+app/src/main/java/com/remnant/dreams/BuildConfig.java

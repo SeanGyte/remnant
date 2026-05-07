@@ -65,4 +65,4 @@ Everyone
 sean.gyte@starrtec.com.au
 
 ## Privacy Policy URL
-(needs hosting -- GitHub Pages or simple web page)
+https://seangyte.github.io/remnant/

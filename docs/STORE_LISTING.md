@@ -30,11 +30,12 @@ PRIVACY FIRST
 
 Your dreams are yours alone. Every recording and transcription stays on your device. No cloud storage, no accounts, no data collection. Voice transcription happens on-device using Android's built-in speech recognition. We never see your dreams.
 
-FEATURES
+FREE FEATURES
 
 - Voice-first dream capture immediately on waking
 - On-device speech-to-text transcription (no internet required)
 - Standalone alarm or companion mode (works with any alarm app)
+- Unlimited journal history -- your dreams are never held hostage
 - Accordion-style dream diary with monthly organisation
 - Audio playback of original recordings
 - Selectable voice personalities for the morning prompt
@@ -45,6 +46,18 @@ FEATURES
 - Configurable retention for audio and transcripts
 - Audio compression for older recordings to save storage
 - Dark theme designed for bleary eyes at dawn
+
+REMNANT PRO -- ONE-TIME PURCHASE, NO SUBSCRIPTION
+
+Everything above is free, forever. Remnant Pro is a single one-time upgrade that
+unlocks:
+
+- Search across every dream you've ever recorded
+- Export your full journal as a text file -- your data is yours
+- Every Pro feature we add later (pattern tracking and overnight Wake Word
+  capture are in development), included at no extra cost
+
+No subscription. No ads, ever. Dreams are too personal for either.
 
 BUILT FOR DREAMERS
 
@@ -60,6 +73,11 @@ dream journal, dream diary, voice journal, lucid dreaming, dream recorder, sleep
 
 ## Content Rating
 Everyone
+
+## Monetisation
+- Contains ads: No
+- In-app purchases: Yes -- Remnant Pro, one-time A$19.99 (launch price, rising to
+  A$29.99), product ID `remnant_pro`
 
 ## Contact Email
 sean.gyte@starrtec.com.au

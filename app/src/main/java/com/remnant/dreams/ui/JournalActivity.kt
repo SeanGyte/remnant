@@ -7,18 +7,30 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.remnant.dreams.R
+import com.remnant.dreams.billing.BillingManager
+import com.remnant.dreams.billing.ProGate
 import com.remnant.dreams.data.DreamDatabase
+import com.remnant.dreams.data.DreamEntry
+import com.remnant.dreams.data.DreamSearch
+import com.remnant.dreams.data.ExportFormatter
 import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.databinding.ActivityJournalBinding
 import com.remnant.dreams.tts.VoiceOption
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 class JournalActivity : AppCompatActivity() {
@@ -27,6 +39,17 @@ class JournalActivity : AppCompatActivity() {
     private lateinit var prefs: PrefsManager
     private lateinit var adapter: DiaryAdapter
     private val database by lazy { DreamDatabase.getInstance(this) }
+
+    /** Full journal, newest first, kept in sync by observeDreams(). */
+    private var allDreams: List<DreamEntry> = emptyList()
+
+    /** Active search query (Pro feature). Empty = no filter. */
+    private var searchQuery: String = ""
+
+    private val exportLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+            if (uri != null) writeExport(uri)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,11 +95,25 @@ class JournalActivity : AppCompatActivity() {
     private fun observeDreams() {
         lifecycleScope.launch {
             database.dreamDao().getAllDreams().collectLatest { dreams ->
-                val diaryItems = DiaryAdapter.groupByMonth(dreams)
-                adapter.submitList(diaryItems)
-                binding.emptyState.visibility = if (dreams.isEmpty()) View.VISIBLE else View.GONE
-                binding.recyclerDreams.visibility = if (dreams.isEmpty()) View.GONE else View.VISIBLE
+                allDreams = dreams
+                renderDreams()
             }
+        }
+    }
+
+    /** Applies the active search filter (if any) and renders the diary list. */
+    private fun renderDreams() {
+        val searching = searchQuery.isNotBlank()
+        val visible = DreamSearch.filter(allDreams, searchQuery)
+        adapter.submitList(DiaryAdapter.groupByMonth(visible))
+        binding.emptyState.visibility = if (visible.isEmpty()) View.VISIBLE else View.GONE
+        binding.recyclerDreams.visibility = if (visible.isEmpty()) View.GONE else View.VISIBLE
+        if (searching) {
+            binding.textEmptyTitle.text = "No matches"
+            binding.textEmptySubtitle.text = "No dreams mention \"${searchQuery.trim()}\"."
+        } else {
+            binding.textEmptyTitle.setText(R.string.journal_empty_title)
+            binding.textEmptySubtitle.setText(R.string.journal_empty_subtitle)
         }
     }
 
@@ -186,16 +223,90 @@ class JournalActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_journal, menu)
+        setupSearch(menu.findItem(R.id.action_search))
         return true
+    }
+
+    /**
+     * Search across entries -- Pro feature. Free users get the upgrade dialog instead
+     * of the search box expanding.
+     */
+    private fun setupSearch(searchItem: MenuItem) {
+        searchItem.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                if (!BillingManager.isProUnlocked(this@JournalActivity)) {
+                    ProGate.showUpgradeDialog(this@JournalActivity, "Search")
+                    return false
+                }
+                return true
+            }
+
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                searchQuery = ""
+                renderDreams()
+                return true
+            }
+        })
+
+        val searchView = searchItem.actionView as SearchView
+        searchView.queryHint = "Search your dreams..."
+        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                searchView.clearFocus()
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                searchQuery = newText.orEmpty()
+                renderDreams()
+                return true
+            }
+        })
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_export -> {
+                ProGate.requirePro(this, "Export") { startExport() }
+                true
+            }
             R.id.action_settings -> {
                 startActivity(Intent(this, SettingsActivity::class.java))
                 true
             }
             else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    /** Export journal -- Pro feature. Plain text via the system file picker (SAF). */
+    private fun startExport() {
+        if (allDreams.isEmpty()) {
+            Toast.makeText(this, "Nothing to export yet -- capture a dream first.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        exportLauncher.launch("remnant-journal-$date.txt")
+    }
+
+    private fun writeExport(uri: android.net.Uri) {
+        val dreams = allDreams
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(ExportFormatter.format(dreams).toByteArray(Charsets.UTF_8))
+                        true
+                    } ?: false
+                } catch (e: Exception) {
+                    false
+                }
+            }
+            val msg = if (ok) {
+                "Exported ${dreams.size} dream${if (dreams.size != 1) "s" else ""}."
+            } else {
+                "Export failed -- couldn't write to that location."
+            }
+            Toast.makeText(this@JournalActivity, msg, Toast.LENGTH_SHORT).show()
         }
     }
 }

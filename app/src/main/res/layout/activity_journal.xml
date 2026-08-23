@@ -80,6 +80,7 @@
             android:visibility="gone">
 
             <TextView
+                android:id="@+id/textEmptyTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/journal_empty_title"
@@ -88,6 +89,7 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/textEmptySubtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/journal_empty_subtitle"

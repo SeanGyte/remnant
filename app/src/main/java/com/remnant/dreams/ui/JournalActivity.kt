@@ -53,8 +53,10 @@ class JournalActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        EdgeToEdgeUtil.enable(this)
         binding = ActivityJournalBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        EdgeToEdgeUtil.applySystemBarInsets(binding.root)
 
         prefs = PrefsManager(this)
 

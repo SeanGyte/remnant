@@ -31,8 +31,10 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        EdgeToEdgeUtil.enable(this)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        EdgeToEdgeUtil.applySystemBarInsets(binding.root)
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

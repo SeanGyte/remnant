@@ -42,6 +42,7 @@ class OnboardingActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        EdgeToEdgeUtil.enable(this)
 
         prefs = PrefsManager(this)
 
@@ -54,6 +55,7 @@ class OnboardingActivity : AppCompatActivity() {
 
         binding = ActivityOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        EdgeToEdgeUtil.applySystemBarInsets(binding.root)
 
         binding.btnSetTime.setOnClickListener {
             showTimePicker()

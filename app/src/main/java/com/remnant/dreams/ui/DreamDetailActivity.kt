@@ -28,8 +28,10 @@ class DreamDetailActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        EdgeToEdgeUtil.enable(this)
         binding = ActivityDreamDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        EdgeToEdgeUtil.applySystemBarInsets(binding.root)
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)

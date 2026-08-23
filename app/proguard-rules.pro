@@ -27,3 +27,9 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# Google Play Billing
+# The billing library ships its own consumer rules; these are a defensive belt for
+# the AIDL-generated Play Store service interface it depends on.
+-keep class com.android.vending.billing.** { *; }
+-dontwarn com.android.billingclient.**

@@ -27,6 +27,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
 import com.remnant.dreams.R
+import com.remnant.dreams.ui.EdgeToEdgeUtil
 import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.databinding.ActivityAlarmBinding
 import com.remnant.dreams.tts.CloudTtsGenerator
@@ -53,8 +54,10 @@ class AlarmActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        EdgeToEdgeUtil.enable(this)
         binding = ActivityAlarmBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        EdgeToEdgeUtil.applySystemBarInsets(binding.root)
 
         prefs = PrefsManager(this)
         isCompanionMode = prefs.companionMode

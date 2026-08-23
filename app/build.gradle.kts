@@ -20,14 +20,15 @@ val keystoreProps = Properties().apply {
 
 android {
     namespace = "com.remnant.dreams"
-    compileSdk = 35
+    // Google Play requires new apps to target API 36 from 31 Aug 2026.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.remnant.dreams"
         minSdk = 29
-        targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        targetSdk = 36
+        versionCode = 3
+        versionName = "1.2.0"
 
         buildConfigField("String", "GOOGLE_CLOUD_TTS_KEY", "\"${localProps.getProperty("GOOGLE_CLOUD_TTS_KEY", "")}\"")
     }

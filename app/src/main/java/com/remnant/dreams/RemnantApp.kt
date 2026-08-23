@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.remnant.dreams.billing.BillingManager
 import com.remnant.dreams.data.DreamDatabase
 import com.remnant.dreams.notification.WeeklyRecapWorker
 import com.remnant.dreams.worker.AudioCleanupWorker
@@ -22,6 +23,7 @@ class RemnantApp : Application() {
         createNotificationChannels()
         scheduleWeeklyRecap()
         scheduleDailyAudioMaintenance()
+        restoreProEntitlement()
     }
 
     private fun createNotificationChannels() {
@@ -106,6 +108,14 @@ class RemnantApp : Application() {
             ExistingPeriodicWorkPolicy.KEEP,
             cleanupWork
         )
+    }
+
+    /**
+     * Connect to Google Play Billing and restore the Pro entitlement (queryPurchases).
+     * Offline-first: if Play is unreachable the locally cached entitlement stands.
+     */
+    private fun restoreProEntitlement() {
+        BillingManager.getInstance(this).startConnection()
     }
 
     companion object {

@@ -4,12 +4,16 @@ import android.app.TimePickerDialog
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.android.billingclient.api.ProductDetails
+import com.remnant.dreams.BuildConfig
 import com.remnant.dreams.R
 import com.remnant.dreams.alarm.AlarmScheduler
+import com.remnant.dreams.billing.BillingManager
 import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.databinding.ActivitySettingsBinding
 import com.remnant.dreams.tts.ApiKeys
@@ -22,6 +26,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: PrefsManager
+    private lateinit var billing: BillingManager
+    private var proDetails: ProductDetails? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,6 +92,94 @@ class SettingsActivity : AppCompatActivity() {
             showTranscriptRetentionPicker()
         }
 
+        binding.textVersion.text = "Remnant v${BuildConfig.VERSION_NAME}"
+
+        setupProSection()
+    }
+
+    private fun setupProSection() {
+        billing = BillingManager.getInstance(this)
+
+        binding.btnGetPro.setOnClickListener {
+            val details = proDetails
+            if (details != null) {
+                billing.launchPurchase(this, details)
+            } else {
+                Toast.makeText(this, "Google Play is unavailable right now. Try again shortly.", Toast.LENGTH_SHORT).show()
+                loadProPrice()
+            }
+        }
+
+        binding.btnRestorePro.setOnClickListener {
+            Toast.makeText(this, "Checking your purchases...", Toast.LENGTH_SHORT).show()
+            billing.refreshEntitlement { isPro ->
+                runOnUiThread {
+                    val msg = if (isPro) "Pro restored. Welcome back." else "No Pro purchase found on this Google account."
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        billing.purchaseOutcomeListener = { outcome ->
+            runOnUiThread {
+                val msg = when (outcome) {
+                    BillingManager.PurchaseOutcome.SUCCESS -> "Pro unlocked. Thank you for supporting Remnant."
+                    BillingManager.PurchaseOutcome.PENDING -> "Purchase pending -- Pro unlocks once payment completes."
+                    BillingManager.PurchaseOutcome.CANCELLED -> null
+                    BillingManager.PurchaseOutcome.ALREADY_OWNED -> "You already own Pro -- restoring it now."
+                    BillingManager.PurchaseOutcome.ERROR -> "Purchase didn't go through. You haven't been charged."
+                }
+                msg?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+                updateProUi()
+            }
+        }
+
+        // React to entitlement changes (purchase completes, restore succeeds).
+        lifecycleScope.launch {
+            billing.isProFlow.collect { updateProUi() }
+        }
+
+        updateProUi()
+        loadProPrice()
+    }
+
+    private fun updateProUi() {
+        when {
+            prefs.isPro -> {
+                binding.textProStatus.text = "Pro is unlocked. Thank you for supporting Remnant."
+                binding.btnGetPro.visibility = View.GONE
+                binding.btnRestorePro.visibility = View.GONE
+            }
+            BuildConfig.SIMULATE_PRO -> {
+                binding.textProStatus.text = "Pro simulated (debug build). All Pro features are unlocked for testing."
+                binding.btnGetPro.visibility = View.GONE
+                binding.btnRestorePro.visibility = View.GONE
+            }
+            else -> {
+                binding.textProStatus.text =
+                    "Search across all your dreams and export your journal. " +
+                        "One-time purchase -- no subscription, no ads, ever."
+                binding.btnGetPro.visibility = View.VISIBLE
+                binding.btnRestorePro.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun loadProPrice() {
+        billing.queryProDetails { details ->
+            runOnUiThread {
+                proDetails = details
+                val price = details?.oneTimePurchaseOfferDetails?.formattedPrice
+                if (price != null) {
+                    binding.btnGetPro.text = "Unlock Pro -- $price"
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        billing.purchaseOutcomeListener = null
     }
 
     private fun showVoicePicker() {

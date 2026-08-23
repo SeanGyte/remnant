@@ -53,10 +53,16 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
+            // Real entitlement only -- Pro comes from Google Play Billing.
+            buildConfigField("boolean", "SIMULATE_PRO", "false")
         }
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
+            // Simulate the Pro entitlement in debug builds so search/export are fully
+            // testable without a Play account. Flip to "false" locally to test the
+            // free-tier gating and upgrade dialogs.
+            buildConfigField("boolean", "SIMULATE_PRO", "true")
         }
     }
 
@@ -101,4 +107,13 @@ dependencies {
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
+
+    // Google Play Billing (one-time Remnant Pro unlock)
+    // Note: 9.x is built with Kotlin 2.3 metadata which our Kotlin 2.1.20 toolchain
+    // cannot read. 8.3.0 is the newest version compatible with this project and is
+    // well inside Google Play's minimum-billing-library policy.
+    implementation("com.android.billingclient:billing-ktx:8.3.0")
+
+    // Unit tests
+    testImplementation("junit:junit:4.13.2")
 }

@@ -38,9 +38,13 @@ class OnboardingActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         // A permission we already held isn't in the result map, so fall back to a live check
-        // rather than assuming -- a cancelled prompt returns an empty map.
+        // rather than assuming.
         val micGranted = permissions[Manifest.permission.RECORD_AUDIO] ?: isGranted(Manifest.permission.RECORD_AUDIO)
         val notificationsDenied = permissions[Manifest.permission.POST_NOTIFICATIONS] == false
+        // We only launch the prompt when something is actually missing, so every answered
+        // prompt comes back with at least one entry. An empty map means it was dismissed
+        // without an answer: nothing was denied, and Android will ask again.
+        val promptDismissed = permissions.isEmpty()
 
         when {
             // Notifications don't block onboarding, but the alarm is delivered as one, so say
@@ -49,7 +53,7 @@ class OnboardingActivity : AppCompatActivity() {
             // Only the microphone is required -- without it there is nothing to record.
             micGranted -> completeOnboarding()
             // Android still shows the prompt, so tapping Start again is worth doing.
-            shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) -> {
+            promptDismissed || shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) -> {
                 Toast.makeText(
                     this,
                     "Remnant needs the microphone to record your dream. Tap Start to allow it.",

@@ -69,7 +69,6 @@ class JournalActivity : AppCompatActivity() {
 
         setupRecyclerView()
         observeDreams()
-        updateStats()
         updateModeStatus()
     }
 
@@ -103,6 +102,10 @@ class JournalActivity : AppCompatActivity() {
             database.dreamDao().getAllDreams().collectLatest { dreams ->
                 allDreams = dreams
                 renderDreams()
+                // The header counts what the journal actually holds, so it has to be
+                // recomputed here rather than at onCreate -- the first emission is what
+                // turns the empty list into the real one.
+                updateStats()
             }
         }
     }
@@ -123,9 +126,17 @@ class JournalActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Header stats. The count comes from the journal itself, not prefs.totalCaptures --
+     * a capture that is interrupted after persistProgress() has written a row never
+     * reaches the final save that increments the pref, so the pref can sit below what
+     * the user is looking at. The streak stays on the pref -- rebuilding it from entry
+     * timestamps is a behaviour change, not a read of the same number, so it is left to
+     * the capture service that owns it.
+     */
     private fun updateStats() {
         val streak = prefs.currentStreak
-        val total = prefs.totalCaptures
+        val total = allDreams.size
 
         if (total > 0) {
             binding.textStats.visibility = View.VISIBLE

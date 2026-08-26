@@ -82,6 +82,11 @@ android {
     }
 }
 
+// Export Room's schema JSON so future versions have a history to author migrations from.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     // AndroidX
     implementation("androidx.core:core-ktx:1.15.0")

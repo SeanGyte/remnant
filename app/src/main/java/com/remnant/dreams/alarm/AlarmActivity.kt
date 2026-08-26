@@ -496,7 +496,14 @@ class AlarmActivity : AppCompatActivity() {
             finish()
         }
 
-        DreamCaptureService.startCapture(this)
+        if (!DreamCaptureService.startCapture(this)) {
+            // The microphone has been switched off since setup. Say so rather than showing
+            // a listening screen that cannot hear anything.
+            binding.textStatus.text = getString(R.string.alarm_microphone_off)
+            binding.btnSkip.text = "Close"
+            mainHandler.postDelayed({ if (!isFinishing) finish() }, 8_000)
+            return
+        }
 
         mainHandler.postDelayed({
             if (!isFinishing) finish()

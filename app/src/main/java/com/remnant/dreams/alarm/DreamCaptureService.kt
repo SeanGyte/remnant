@@ -1,18 +1,18 @@
 package com.remnant.dreams.alarm
 
+import android.Manifest
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.remnant.dreams.R
 import com.remnant.dreams.RemnantApp
 import com.remnant.dreams.data.DreamDatabase
@@ -20,6 +20,7 @@ import com.remnant.dreams.data.DreamEntry
 import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.data.TranscriptPlaceholders
 import com.remnant.dreams.ui.JournalActivity
+import com.remnant.dreams.worker.TranscriptionWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,41 +35,87 @@ import java.time.LocalDate
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Records the dream and hands the recording off to be transcribed.
+ *
+ * The microphone is held by one component and one only. This service used to run a
+ * SpeechRecognizer and a MediaRecorder against the microphone at the same time, on the
+ * theory that Android 10's concurrent capture would feed both. It does not: the platform
+ * arbitrates, one client gets the audio and the other gets silence, and on the hardware
+ * this was tested against the recogniser lost every single time. The recording came back
+ * with the user's voice clearly on it while the recogniser reported ERROR_NO_MATCH sixteen
+ * times over the same fifty-two seconds. Every capture for three months produced audio and
+ * no words.
+ *
+ * So the recorder takes the microphone alone, and recognition happens afterwards, against
+ * the finished file, where nothing is competing with it -- see [TranscriptionWorker]. That
+ * also means the decision to keep or bin a capture can hang off the recorder's own signal
+ * level rather than off a recogniser that may not be hearing anything at all: see
+ * [CapturePolicy].
+ */
 class DreamCaptureService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var speechRecognizer: SpeechRecognizer? = null
     private var mediaRecorder: MediaRecorder? = null
     private var audioFile: File? = null
-    private var isListening = false
     private var isCaptureActive = false
-    private var hasSpeechBeenDetected = false
-    private var accumulatedTranscription = StringBuilder()
+    private var heardSpeech = false
+    private var peakAmplitude = 0
     private var lastSpeechTime = 0L
     private var captureStartTime = 0L
-    private var silenceCheckRunning = false
+    private var monitorRunning = false
 
-    // Row id of the entry created by the first transcribed segment, so later segments and
-    // the final save update that row instead of inserting a second one. 0 means "not saved
-    // yet". Only ever read or written inside a saveScope block (see enqueueWrite).
+    // Row id of the entry for this capture. 0 means "not saved yet". Only ever read or
+    // written inside a saveScope block (see enqueueWrite).
     @Volatile
     private var draftEntryId = 0L
 
     // Tail of the write chain. Only touched on the main thread, which is where every
-    // recogniser callback and every stopAndSave/dismiss call runs.
+    // capture callback and every stopAndSave/dismiss call runs.
     private var pendingWrite: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, buildNotification("Hearing your dream..."))
+
+        // A microphone foreground service without RECORD_AUDIO is a SecurityException on
+        // Android 14, thrown out of startForeground and straight through to an "Application
+        // Error" dialog. The permission is revocable at any time from Settings, so the
+        // service has to expect to find it gone and bow out quietly instead of crashing.
+        if (!hasMicrophonePermission()) {
+            Log.w(TAG, "Microphone permission not granted -- capture cannot run")
+            bowOut()
+            return
+        }
+
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification("Hearing your dream..."))
+        } catch (e: Exception) {
+            // Any other reason the platform refuses the foreground service is still not
+            // worth taking the app down for.
+            Log.e(TAG, "Could not start capture in the foreground: ${e.message}")
+            bowOut()
+        }
     }
+
+    /** Stands the service down without capturing, leaving tomorrow's alarm intact. */
+    private fun bowOut() {
+        isCaptureActive = false
+        AlarmScheduler.rescheduleForTomorrow(this)
+        broadcastCaptureComplete()
+        stopSelf()
+    }
+
+    private fun hasMicrophonePermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_CAPTURE -> {
-                if (!isCaptureActive) {
+                // onCreate may already have stood the service down.
+                if (!isCaptureActive && hasMicrophonePermission()) {
                     startCapture()
                 }
             }
@@ -81,28 +128,24 @@ class DreamCaptureService : Service() {
     private fun startCapture() {
         isCaptureActive = true
         captureStartTime = System.currentTimeMillis()
+        lastSpeechTime = captureStartTime
 
-        // Start SpeechRecognizer first (gets mic priority for transcription).
-        // Then try MediaRecorder for raw audio backup.
-        // On Android 10+ (our minSdk 29), audio sharing is supported.
-        // If MediaRecorder can't get the mic, it fails gracefully and we continue
-        // with transcription only. Raw audio is best-effort.
-        startSpeechRecognition()
-
-        // Delay MediaRecorder start slightly to let SpeechRecognizer claim the mic first
-        serviceScope.launch {
-            delay(500)
-            startAudioRecording()
+        if (!startAudioRecording()) {
+            // Without the recorder there is no microphone and no capture. Nothing to save.
+            Log.e(TAG, "Capture aborted -- recorder would not start")
+            bowOut()
+            return
         }
 
-        startSilenceMonitor()
+        startLevelMonitor()
     }
 
-    private fun startAudioRecording() {
-        try {
+    /** @return true when the recorder is running and the microphone is ours. */
+    private fun startAudioRecording(): Boolean {
+        return try {
             val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
             val fileName = "dream_${dateFormat.format(Date())}.m4a"
-            val audioDir = File(filesDir, "audio").apply { mkdirs() }
+            val audioDir = File(filesDir, AUDIO_DIR).apply { mkdirs() }
             audioFile = File(audioDir, fileName)
 
             mediaRecorder = (if (Build.VERSION.SDK_INT >= 31) {
@@ -120,177 +163,71 @@ class DreamCaptureService : Service() {
                 prepare()
                 start()
             }
-            Log.d(TAG, "MediaRecorder started successfully")
+            Log.d(TAG, "Recorder started -- microphone held by this service alone")
+            true
         } catch (e: Exception) {
-            // Audio recording is best-effort -- SpeechRecognizer handles transcription
-            Log.w(TAG, "MediaRecorder failed (mic may be exclusive to SpeechRecognizer): ${e.message}")
+            Log.e(TAG, "MediaRecorder failed to start: ${e.message}")
             mediaRecorder = null
             audioFile?.delete()
             audioFile = null
+            false
         }
     }
 
-    private fun startSpeechRecognition() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            Log.w(TAG, "Speech recognition not available on this device")
-            return
-        }
-
-        try {
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
-                setRecognitionListener(createRecognitionListener())
-            }
-            startListening()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to create SpeechRecognizer: ${e.message}")
-        }
-    }
-
-    private fun startListening() {
-        if (isListening) return
-        isListening = true
-        lastSpeechTime = System.currentTimeMillis()
-
-        val recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000)
-        }
-
-        try {
-            speechRecognizer?.startListening(recognizerIntent)
-        } catch (e: Exception) {
-            Log.e(TAG, "startListening failed: ${e.message}")
-            isListening = false
-        }
-    }
-
-    private fun restartListening() {
-        isListening = false
-        try {
-            speechRecognizer?.cancel()
-        } catch (_: Exception) {}
+    /**
+     * Watches the signal coming off the recorder and applies [CapturePolicy].
+     *
+     * getMaxAmplitude() reports the loudest sample since the previous call, which is enough
+     * to tell a person talking from an empty room -- and unlike the recogniser it is reading
+     * the microphone this service actually holds.
+     */
+    private fun startLevelMonitor() {
+        if (monitorRunning) return
+        monitorRunning = true
 
         serviceScope.launch {
-            delay(300)
-            if (!isListening && isCaptureActive) {
-                startListening()
-            }
-        }
-    }
+            var announced = false
 
-    private fun createRecognitionListener(): RecognitionListener {
-        return object : RecognitionListener {
-            override fun onReadyForSpeech(params: android.os.Bundle?) {
-                Log.d(TAG, "Ready for speech")
-            }
+            while (monitorRunning && isCaptureActive) {
+                delay(LEVEL_POLL_MS)
 
-            override fun onBeginningOfSpeech() {
-                hasSpeechBeenDetected = true
-                lastSpeechTime = System.currentTimeMillis()
-                updateNotification("Recording your dream...")
-            }
-
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {
-                isListening = false
-            }
-
-            override fun onError(error: Int) {
-                isListening = false
-                Log.d(TAG, "SpeechRecognizer error: $error")
-
-                if (!isCaptureActive) return
-
-                when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH,
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                        if (hasSpeechBeenDetected) {
-                            val silenceTime = System.currentTimeMillis() - lastSpeechTime
-                            if (silenceTime > SILENCE_TIMEOUT_MS) {
-                                stopAndSave()
-                            } else {
-                                restartListening()
-                            }
-                        } else {
-                            val elapsed = System.currentTimeMillis() - captureStartTime
-                            if (elapsed > INITIAL_WAIT_MS) {
-                                dismiss()
-                            } else {
-                                restartListening()
-                            }
-                        }
-                    }
-                    else -> {
-                        if (hasSpeechBeenDetected && accumulatedTranscription.isNotEmpty()) {
-                            stopAndSave()
-                        } else {
-                            dismiss()
-                        }
-                    }
+                val amplitude = try {
+                    mediaRecorder?.maxAmplitude ?: 0
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not read recorder level: ${e.message}")
+                    0
                 }
-            }
 
-            override fun onResults(results: android.os.Bundle?) {
-                isListening = false
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                if (!matches.isNullOrEmpty()) {
-                    val text = matches[0]
-                    if (text.isNotBlank()) {
-                        if (accumulatedTranscription.isNotEmpty()) {
-                            accumulatedTranscription.append(" ")
-                        }
-                        accumulatedTranscription.append(text)
-                        lastSpeechTime = System.currentTimeMillis()
-                        hasSpeechBeenDetected = true
-                        // Never log the text itself -- it is the user's private journal.
-                        Log.d(TAG, "Transcription segment: ${text.length} chars")
-                        persistProgress()
-                    }
-                }
-                restartListening()
-            }
+                if (amplitude > peakAmplitude) peakAmplitude = amplitude
 
-            override fun onPartialResults(partialResults: android.os.Bundle?) {
-                lastSpeechTime = System.currentTimeMillis()
-                hasSpeechBeenDetected = true
-            }
-
-            override fun onEvent(eventType: Int, params: android.os.Bundle?) {}
-        }
-    }
-
-    private fun startSilenceMonitor() {
-        if (silenceCheckRunning) return
-        silenceCheckRunning = true
-
-        serviceScope.launch {
-            while (silenceCheckRunning && isCaptureActive) {
-                delay(2000)
                 val now = System.currentTimeMillis()
+                if (CapturePolicy.isSpeech(amplitude)) {
+                    if (!heardSpeech) Log.d(TAG, "Speech detected at level $amplitude")
+                    heardSpeech = true
+                    lastSpeechTime = now
+                    if (!announced) {
+                        announced = true
+                        updateNotification("Recording your dream...")
+                    }
+                }
 
-                if (hasSpeechBeenDetected) {
-                    val silenceTime = now - lastSpeechTime
-                    if (silenceTime > SILENCE_TIMEOUT_MS) {
+                when (
+                    CapturePolicy.decide(
+                        heardSpeech = heardSpeech,
+                        elapsedMs = now - captureStartTime,
+                        sinceSpeechMs = now - lastSpeechTime
+                    )
+                ) {
+                    CapturePolicy.Decision.CONTINUE -> Unit
+                    CapturePolicy.Decision.SAVE -> {
                         stopAndSave()
                         return@launch
                     }
-                } else {
-                    val elapsed = now - captureStartTime
-                    if (elapsed > INITIAL_WAIT_MS) {
+                    CapturePolicy.Decision.DISCARD -> {
+                        Log.d(TAG, "Nobody spoke (peak=$peakAmplitude) -- discarding capture")
                         dismiss()
                         return@launch
                     }
-                }
-
-                val totalElapsed = now - captureStartTime
-                if (totalElapsed > MAX_CAPTURE_MS) {
-                    stopAndSave()
-                    return@launch
                 }
             }
         }
@@ -300,10 +237,8 @@ class DreamCaptureService : Service() {
      * Queues a database write on [saveScope], after every write queued before it.
      *
      * Chaining on the previous job is what keeps [draftEntryId] race-free: the chain is
-     * built on the main thread, so the order is the order the segments arrived in, and a
+     * built on the main thread, so the order is the order the writes were asked for, and a
      * block cannot start until the block that may have assigned the row id has finished.
-     * A single-threaded dispatcher would not be enough on its own, because Room's suspend
-     * calls release the thread mid-write and the next segment could overtake them.
      */
     private fun enqueueWrite(block: suspend () -> Unit) {
         val previous = pendingWrite
@@ -317,138 +252,123 @@ class DreamCaptureService : Service() {
         }
     }
 
-    /**
-     * Writes the transcript so far to the database as each segment lands, so a crash or an
-     * out-of-memory kill mid-capture leaves the user with what they have said rather than
-     * nothing. The audio path is deliberately left off until the final save -- until the
-     * recorder is stopped the m4a has no moov atom and cannot be played back.
-     */
-    private fun persistProgress() {
-        val transcription = accumulatedTranscription.toString().trim()
-        if (transcription.isEmpty()) return
-
-        val duration = ((System.currentTimeMillis() - captureStartTime) / 1000).toInt()
-        val context = applicationContext
-        enqueueWrite {
-            val dao = DreamDatabase.getInstance(context).dreamDao()
-            if (draftEntryId == 0L) {
-                draftEntryId = dao.insert(
-                    DreamEntry(
-                        transcription = transcription,
-                        durationSeconds = duration,
-                        isFragment = transcription.length < FRAGMENT_MAX_CHARS
-                    )
-                )
-            } else {
-                val existing = dao.getDreamById(draftEntryId) ?: return@enqueueWrite
-                dao.update(
-                    existing.copy(
-                        transcription = transcription,
-                        durationSeconds = duration,
-                        isFragment = transcription.length < FRAGMENT_MAX_CHARS
-                    )
-                )
-            }
-        }
-    }
-
     private fun stopAndSave() {
         if (!isCaptureActive) return
         isCaptureActive = false
-        silenceCheckRunning = false
+        monitorRunning = false
 
-        cleanupRecognizer()
-        cleanupRecorder()
+        val recorded = cleanupRecorder()
 
-        val transcription = accumulatedTranscription.toString().trim()
         val duration = ((System.currentTimeMillis() - captureStartTime) / 1000).toInt()
-        val isFragment = transcription.length < FRAGMENT_MAX_CHARS
-        val savedAudioPath = audioFile?.absolutePath
+        val savedAudioPath = audioFile?.takeIf { recorded && it.exists() && it.length() > 0 }
+            ?.absolutePath
 
-        Log.d(TAG, "Saving dream: ${transcription.length} chars, ${duration}s, fragment=$isFragment")
+        // Peak level is worth having in the log: it is the difference between "the room was
+        // quiet" and "the microphone was not reaching us", which is exactly the question
+        // that went unanswered for three months.
+        Log.d(TAG, "Saving dream: ${duration}s, peak=$peakAmplitude, audio=${savedAudioPath != null}")
 
-        if (transcription.isNotEmpty() || audioFile?.exists() == true) {
-            val context = applicationContext
-            enqueueWrite {
-                try {
-                    val dao = DreamDatabase.getInstance(context).dreamDao()
-                    val text = transcription.ifEmpty { TranscriptPlaceholders.NO_TRANSCRIPT_WITH_AUDIO }
-                    val existing = if (draftEntryId == 0L) null else dao.getDreamById(draftEntryId)
+        if (savedAudioPath == null) {
+            // Nothing playable and nothing transcribable. An empty row helps nobody.
+            Log.w(TAG, "Nothing was recorded -- saving no entry")
+            audioFile?.delete()
+            bowOut()
+            return
+        }
 
-                    if (existing == null) {
-                        draftEntryId = dao.insert(
-                            DreamEntry(
-                                transcription = text,
-                                audioPath = savedAudioPath,
-                                durationSeconds = duration,
-                                isFragment = isFragment
-                            )
+        val context = applicationContext
+        enqueueWrite {
+            var rowId = draftEntryId
+            try {
+                val dao = DreamDatabase.getInstance(context).dreamDao()
+                val existing = if (draftEntryId == 0L) null else dao.getDreamById(draftEntryId)
+
+                if (existing == null) {
+                    rowId = dao.insert(
+                        DreamEntry(
+                            // The words are not known yet -- TranscriptionWorker fills them
+                            // in once it has read the finished recording. Until then the
+                            // entry says what it honestly has: the audio.
+                            transcription = TranscriptPlaceholders.NO_TRANSCRIPT_WITH_AUDIO,
+                            audioPath = savedAudioPath,
+                            durationSeconds = duration,
+                            isFragment = true
                         )
-                    } else {
-                        dao.update(
-                            existing.copy(
-                                transcription = text,
-                                audioPath = savedAudioPath,
-                                durationSeconds = duration,
-                                isFragment = isFragment
-                            )
+                    )
+                    draftEntryId = rowId
+                } else {
+                    dao.update(
+                        existing.copy(
+                            audioPath = savedAudioPath,
+                            durationSeconds = duration
                         )
-                    }
+                    )
+                    rowId = existing.id
+                }
 
-                    val prefs = PrefsManager(context)
-                    prefs.totalCaptures += 1
-                    updateStreak(prefs)
-                } finally {
-                    // The alarm must be rescheduled and the service stopped even if the
-                    // write blew up, or the user gets no alarm tomorrow.
-                    withContext(Dispatchers.Main) {
-                        AlarmScheduler.rescheduleForTomorrow(context)
-                        broadcastCaptureComplete()
-                        stopSelf()
+                val prefs = PrefsManager(context)
+                prefs.totalCaptures += 1
+                updateStreak(prefs)
+            } finally {
+                // The alarm must be rescheduled and the service stopped even if the write
+                // blew up, or the user gets no alarm tomorrow.
+                withContext(Dispatchers.Main) {
+                    if (rowId != 0L) {
+                        TranscriptionWorker.enqueue(context, rowId, savedAudioPath)
                     }
+                    AlarmScheduler.rescheduleForTomorrow(context)
+                    broadcastCaptureComplete()
+                    stopSelf()
                 }
             }
-        } else {
-            AlarmScheduler.rescheduleForTomorrow(this)
-            broadcastCaptureComplete()
-            stopSelf()
         }
     }
 
+    /**
+     * Ends the capture keeping nothing. Used when nobody spoke -- a recording of an empty
+     * room is not a dream, and saving one costs the user an entry, the storage and a day's
+     * streak they did not earn.
+     */
     private fun dismiss() {
         if (!isCaptureActive) return
         isCaptureActive = false
-        silenceCheckRunning = false
+        monitorRunning = false
 
-        cleanupRecognizer()
         cleanupRecorder()
 
-        audioFile?.let { if (it.length() == 0L) it.delete() }
+        audioFile?.delete()
+        audioFile = null
 
         AlarmScheduler.rescheduleForTomorrow(this)
         broadcastCaptureComplete()
         stopSelf()
     }
 
-    private fun cleanupRecognizer() {
-        try {
-            speechRecognizer?.stopListening()
-            speechRecognizer?.cancel()
-            speechRecognizer?.destroy()
-        } catch (_: Exception) {}
-        speechRecognizer = null
-        isListening = false
-    }
+    /**
+     * Stops the recorder so the file is finalised and playable.
+     *
+     * @return true when the recording was closed properly. A recorder stopped before it
+     *   captured anything throws, and leaves an MPEG-4 with no moov atom that nothing can
+     *   play, so the file is binned rather than handed on as if it were a dream.
+     */
+    private fun cleanupRecorder(): Boolean {
+        val recorder = mediaRecorder ?: return false
+        mediaRecorder = null
 
-    private fun cleanupRecorder() {
-        try {
-            mediaRecorder?.stop()
-            mediaRecorder?.release()
-        } catch (_: Exception) {
+        return try {
+            recorder.stop()
+            recorder.release()
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Recorder would not stop cleanly -- recording unusable: ${e.message}")
+            try {
+                recorder.release()
+            } catch (_: Exception) {
+            }
             audioFile?.delete()
             audioFile = null
+            false
         }
-        mediaRecorder = null
     }
 
     private fun broadcastCaptureComplete() {
@@ -497,7 +417,7 @@ class DreamCaptureService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // User swiped from recents while capture was active -- save what we have
+        // User swiped from recents while capture was active -- keep what we have
         if (isCaptureActive) {
             Log.w(TAG, "Task removed during active capture -- saving")
             stopAndSave()
@@ -507,11 +427,14 @@ class DreamCaptureService : Service() {
 
     override fun onDestroy() {
         isCaptureActive = false
-        silenceCheckRunning = false
+        monitorRunning = false
         // serviceScope only -- saveScope is left alone so any queued write still lands.
         serviceScope.cancel()
-        try { speechRecognizer?.destroy() } catch (_: Exception) {}
-        try { mediaRecorder?.release() } catch (_: Exception) {}
+        try {
+            mediaRecorder?.release()
+        } catch (_: Exception) {
+        }
+        mediaRecorder = null
         super.onDestroy()
     }
 
@@ -522,22 +445,39 @@ class DreamCaptureService : Service() {
         const val ACTION_STOP = "com.remnant.dreams.STOP"
         const val ACTION_DISMISS = "com.remnant.dreams.DISMISS"
         const val ACTION_CAPTURE_COMPLETE = "com.remnant.dreams.CAPTURE_COMPLETE"
-        private const val INITIAL_WAIT_MS = 15_000L
-        private const val SILENCE_TIMEOUT_MS = 8_000L
-        private const val MAX_CAPTURE_MS = 600_000L
-        private const val FRAGMENT_MAX_CHARS = 50
+
+        /** Directory under filesDir holding the recordings. */
+        const val AUDIO_DIR = "audio"
+
+        /** How often the recorder's level is sampled while a capture runs. */
+        private const val LEVEL_POLL_MS = 500L
 
         // Database writes have to outlive the service. serviceScope is cancelled in
-        // onDestroy -- correct for the silence monitor and the delayed starts, fatal for a
-        // save still in flight -- so every Room and prefs write runs here instead, on a
-        // scope nothing cancels.
+        // onDestroy -- correct for the level monitor, fatal for a save still in flight --
+        // so every Room and prefs write runs here instead, on a scope nothing cancels.
         private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-        fun startCapture(context: Context) {
+        /**
+         * Starts a capture, if the microphone is available to us.
+         *
+         * @return false when RECORD_AUDIO has been revoked, so the caller can tell the user
+         *   rather than starting a service that can only stand itself back down.
+         */
+        fun startCapture(context: Context): Boolean {
+            val granted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!granted) {
+                Log.w(TAG, "Not starting capture -- microphone permission revoked")
+                return false
+            }
+
             val intent = Intent(context, DreamCaptureService::class.java).apply {
                 action = ACTION_START_CAPTURE
             }
             context.startForegroundService(intent)
+            return true
         }
     }
 }

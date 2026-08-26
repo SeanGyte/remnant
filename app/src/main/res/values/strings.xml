@@ -9,9 +9,11 @@
     <string name="onboarding_name_required">Remnant greets you by name each morning, so it needs one first.</string>
     <string name="onboarding_alarm_label">When do you wake up?</string>
     <!-- %1$s the phone's existing alarm time, %2$s the time picked here. -->
-    <string name="onboarding_alarm_conflict">Your phone already rings at %1$s. Remnant won\'t ring over it -- it will stay quiet and ask about your dream at %2$s, which is a while after you\'re up.</string>
-    <!-- %1$s the time Remnant would check in instead. -->
-    <string name="onboarding_alarm_use_device">Ask me at %1$s instead</string>
+    <string name="onboarding_alarm_conflict">Your phone already rings at %1$s, and Remnant is set for %2$s -- well after you\'re up and moving, by which point the dream has usually gone. Waking you half an hour before your alarm catches it while it\'s still there. Remnant rings its own tone to do that, since it gets in first. The quieter option is to let your phone wake you and have Remnant ask straight afterwards, with no tone at all.</string>
+    <!-- %1$s the recommended wake time, half an hour before the phone's alarm. -->
+    <string name="onboarding_alarm_wake_before">Wake me at %1$s</string>
+    <!-- %1$s the time Remnant would quietly check in, just after the phone's alarm. -->
+    <string name="onboarding_alarm_use_device">Or ask me quietly at %1$s</string>
     <string name="onboarding_voice_hint">Your morning voice is made by Google\'s text-to-speech service: your first name and the greeting are sent to Google to generate it. Tap to hear the others, or pick your phone\'s own voice to keep it on your device.</string>
     <string name="onboarding_start">Start Capturing Dreams</string>
 
@@ -24,6 +26,7 @@
     <string name="alarm_waking">Good morning</string>
     <string name="alarm_dismiss">I\'m Awake</string>
     <string name="alarm_skip">Skip dream capture</string>
+    <string name="alarm_microphone_off">Remnant can\'t record without the microphone. Turn it back on under Permissions in the app\'s settings.</string>
     <string name="alarm_preparing">Take a moment\u2026 what do you remember?</string>
     <string name="alarm_listening">Listening\u2026</string>
 
@@ -38,6 +41,10 @@
 
     <!-- Detail -->
     <string name="detail_transcription_hint">Edit your dream\u2026</string>
+
+    <!-- Settings -->
+    <!-- The switch carries no text of its own, so screen readers need this to name it. -->
+    <string name="settings_alarm_switch_description">Alarm enabled</string>
 
     <!-- Notifications -->
     <string name="notification_capturing">Capturing your dream\u2026</string>

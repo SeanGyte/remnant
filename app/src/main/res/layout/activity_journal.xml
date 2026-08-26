@@ -12,8 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="@color/surface"
-        app:titleTextColor="@color/white"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Dark" />
+        app:titleTextColor="@color/white" />
 
     <TextView
         android:id="@+id/textStats"

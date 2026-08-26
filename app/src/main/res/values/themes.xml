@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Remnant" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!--
+      Not DayNight on purpose. Remnant is permanently dark: there is no values-night, every
+      colour here is a dark-theme colour, and the layouts hard-code dark backgrounds. Under
+      a DayNight parent a phone in light mode still picked up the light Material palette for
+      anything the app did not override by hand (popup menus and dialogs), which is how the
+      overflow menu came out as a blank white square. Pinning the dark parent makes those
+      surfaces match the rest of the app whatever the phone is set to.
+    -->
+    <style name="Theme.Remnant" parent="Theme.MaterialComponents.NoActionBar">
         <item name="colorPrimary">@color/accent</item>
         <item name="colorPrimaryDark">@color/accent_dark</item>
         <item name="colorAccent">@color/accent</item>
@@ -10,6 +18,9 @@
         <item name="android:navigationBarColor">@color/background</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
+        <!-- Popups and dialogs draw on these, so point them at the app's own palette. -->
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
     </style>
 
     <style name="Theme.Remnant.Onboarding" parent="Theme.Remnant">
@@ -20,7 +31,7 @@
         <item name="android:windowFullscreen">true</item>
     </style>
 
-    <style name="Theme.Remnant.Dialog" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.Remnant.Dialog" parent="Theme.MaterialComponents.NoActionBar">
         <item name="colorPrimary">@color/accent</item>
         <item name="colorPrimaryDark">@color/accent_dark</item>
         <item name="colorAccent">@color/accent</item>
@@ -29,6 +40,8 @@
         <item name="android:navigationBarColor">@color/surface</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
         <item name="android:windowIsFloating">false</item>
         <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
     </style>

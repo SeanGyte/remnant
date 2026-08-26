@@ -2,6 +2,7 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_gradient_dark"
@@ -63,7 +64,7 @@
             android:layout_height="wrap_content"
             android:textColor="@color/white"
             android:inputType="textPersonName"
-            android:imeOptions="actionNext" />
+            android:imeOptions="actionDone" />
 
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -91,6 +92,41 @@
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="8dp" />
 
+    <!-- Both shown together, and only when the phone already has an earlier alarm set. -->
+    <TextView
+        android:id="@+id/textAlarmConflict"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary"
+        android:lineSpacingMultiplier="1.3"
+        app:layout_constraintTop_toBottomOf="@id/btnSetTime"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="12dp"
+        tools:visibility="visible"
+        tools:text="Your phone already rings at 6:00 AM." />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnUseDeviceAlarm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:textSize="14sp"
+        android:textAllCaps="false"
+        android:minHeight="40dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:textColor="@color/white"
+        app:strokeColor="@color/accent"
+        app:layout_constraintTop_toBottomOf="@id/textAlarmConflict"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="6dp"
+        tools:visibility="visible"
+        tools:text="Check in at 6:05 AM instead" />
+
     <TextView
         android:id="@+id/textVoiceHint"
         android:layout_width="0dp"
@@ -99,7 +135,7 @@
         android:textSize="12sp"
         android:textColor="@color/text_secondary"
         android:lineSpacingMultiplier="1.3"
-        app:layout_constraintTop_toBottomOf="@id/btnSetTime"
+        app:layout_constraintTop_toBottomOf="@id/btnUseDeviceAlarm"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="16dp" />

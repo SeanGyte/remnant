@@ -8,6 +8,10 @@
     <string name="onboarding_name_hint">What should we call you?</string>
     <string name="onboarding_name_required">Remnant greets you by name each morning, so it needs one first.</string>
     <string name="onboarding_alarm_label">When do you wake up?</string>
+    <!-- %1$s the phone's existing alarm time, %2$s the time picked here. -->
+    <string name="onboarding_alarm_conflict">Your phone already rings at %1$s. Remnant won\'t ring over it -- it will stay quiet and ask about your dream at %2$s, which is a while after you\'re up.</string>
+    <!-- %1$s the time Remnant would check in instead. -->
+    <string name="onboarding_alarm_use_device">Ask me at %1$s instead</string>
     <string name="onboarding_voice_hint">Your morning voice is made by Google\'s text-to-speech service: your first name and the greeting are sent to Google to generate it. Tap to hear the others, or pick your phone\'s own voice to keep it on your device.</string>
     <string name="onboarding_start">Start Capturing Dreams</string>
 

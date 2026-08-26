@@ -1,6 +1,7 @@
 package com.remnant.dreams.ui
 
 import android.Manifest
+import android.app.AlarmManager
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -8,6 +9,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.KeyEvent
+import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -19,12 +23,14 @@ import androidx.core.widget.doAfterTextChanged
 import com.remnant.dreams.AppScope
 import com.remnant.dreams.R
 import com.remnant.dreams.alarm.AlarmScheduler
+import com.remnant.dreams.alarm.CompanionAlarm
 import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.databinding.ActivityOnboardingBinding
 import com.remnant.dreams.tts.ApiKeys
 import com.remnant.dreams.tts.CloudTtsGenerator
 import com.remnant.dreams.tts.VoiceOption
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import java.util.Locale
 
 class OnboardingActivity : AppCompatActivity() {
@@ -90,32 +96,57 @@ class OnboardingActivity : AppCompatActivity() {
             showVoicePicker()
         }
 
+        binding.btnUseDeviceAlarm.setOnClickListener {
+            useDeviceAlarmTime()
+        }
+
         // Take the error down the moment they start supplying what it asked for.
         binding.editName.doAfterTextChanged { binding.layoutName.error = null }
 
-        binding.btnStart.setOnClickListener {
-            val name = binding.editName.text.toString().trim()
-            if (name.isEmpty()) {
-                // The error belongs on the TextInputLayout, not the edit text nested in it:
-                // a TextView error is a popup Android only raises while the field has
-                // focus, and on a fresh install nothing is focused, so Start looked like a
-                // dead button. The layout draws its error under the field either way.
-                binding.layoutName.error = getString(R.string.onboarding_name_required)
-                binding.editName.requestFocus()
-                WindowCompat.getInsetsController(window, binding.editName)
-                    .show(WindowInsetsCompat.Type.ime())
-                return@setOnClickListener
+        // The name is the last thing the keyboard is open for, so its action key finishes
+        // the screen rather than hunting for a next field there isn't one of.
+        binding.editName.setOnEditorActionListener { _, actionId, event ->
+            val enterPressed = event?.keyCode == KeyEvent.KEYCODE_ENTER &&
+                event.action == KeyEvent.ACTION_DOWN
+            if (actionId == EditorInfo.IME_ACTION_DONE || enterPressed) {
+                attemptStart()
+                true
+            } else {
+                false
             }
+        }
 
-            prefs.userName = name
-            prefs.alarmHour = selectedHour
-            prefs.alarmMinute = selectedMinute
-
-            requestPermissions()
+        binding.btnStart.setOnClickListener {
+            attemptStart()
         }
 
         updateTimeDisplay()
         updateVoiceDisplay()
+    }
+
+    /**
+     * Everything the Start button does, shared with the keyboard's action key so the two
+     * can't drift apart -- an empty name has to complain the same way whichever one is used.
+     */
+    private fun attemptStart() {
+        val name = binding.editName.text.toString().trim()
+        if (name.isEmpty()) {
+            // The error belongs on the TextInputLayout, not the edit text nested in it:
+            // a TextView error is a popup Android only raises while the field has
+            // focus, and on a fresh install nothing is focused, so Start looked like a
+            // dead button. The layout draws its error under the field either way.
+            binding.layoutName.error = getString(R.string.onboarding_name_required)
+            binding.editName.requestFocus()
+            WindowCompat.getInsetsController(window, binding.editName)
+                .show(WindowInsetsCompat.Type.ime())
+            return
+        }
+
+        prefs.userName = name
+        prefs.alarmHour = selectedHour
+        prefs.alarmMinute = selectedMinute
+
+        requestPermissions()
     }
 
     /**
@@ -155,13 +186,78 @@ class OnboardingActivity : AppCompatActivity() {
     }
 
     private fun updateTimeDisplay() {
-        val amPm = if (selectedHour < 12) "AM" else "PM"
-        val displayHour = when {
-            selectedHour == 0 -> 12
-            selectedHour > 12 -> selectedHour - 12
-            else -> selectedHour
+        binding.btnSetTime.text = formatClock(selectedHour, selectedMinute)
+        updateAlarmConflict()
+    }
+
+    /**
+     * Flags the thing the journal banner used to be the first to mention: the phone already
+     * rings earlier, so Remnant would sit out the actual wake-up and only ask about the
+     * dream a long time afterwards. Better said here, while the time is still being picked,
+     * than as a surprise once setup is done. Hidden entirely when there is no clash, so it
+     * costs nothing on the small screens this layout is tight on.
+     */
+    private fun updateAlarmConflict() {
+        val deviceAlarmMs = deviceAlarmTimeMs()
+        val ourAlarmMs = nextOccurrenceOf(selectedHour, selectedMinute)
+
+        if (deviceAlarmMs == null || !CompanionAlarm.isCheckInStale(deviceAlarmMs, ourAlarmMs)) {
+            binding.textAlarmConflict.visibility = View.GONE
+            binding.btnUseDeviceAlarm.visibility = View.GONE
+            return
         }
-        binding.btnSetTime.text = String.format(Locale.US, "%d:%02d %s", displayHour, selectedMinute, amPm)
+
+        binding.textAlarmConflict.text = getString(
+            R.string.onboarding_alarm_conflict,
+            formatClock(deviceAlarmMs),
+            formatClock(ourAlarmMs)
+        )
+        binding.btnUseDeviceAlarm.text = getString(
+            R.string.onboarding_alarm_use_device,
+            formatClock(CompanionAlarm.checkInTimeAfter(deviceAlarmMs))
+        )
+        binding.textAlarmConflict.visibility = View.VISIBLE
+        binding.btnUseDeviceAlarm.visibility = View.VISIBLE
+    }
+
+    /** Moves the check-in to just after the alarm the phone already has set. */
+    private fun useDeviceAlarmTime() {
+        val deviceAlarm = deviceAlarmTimeMs() ?: return
+        val checkIn = Calendar.getInstance().apply {
+            timeInMillis = CompanionAlarm.checkInTimeAfter(deviceAlarm)
+        }
+        selectedHour = checkIn.get(Calendar.HOUR_OF_DAY)
+        selectedMinute = checkIn.get(Calendar.MINUTE)
+        updateTimeDisplay()
+    }
+
+    /** The phone's own next alarm, or null when nothing else is set to wake the user. */
+    private fun deviceAlarmTimeMs(): Long? =
+        getSystemService(AlarmManager::class.java)?.nextAlarmClock?.triggerTime
+
+    /** The next time [hour]:[minute] comes round, matching how AlarmScheduler works it out. */
+    private fun nextOccurrenceOf(hour: Int, minute: Int): Long =
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
+        }.timeInMillis
+
+    private fun formatClock(timeMs: Long): String {
+        val cal = Calendar.getInstance().apply { timeInMillis = timeMs }
+        return formatClock(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+    }
+
+    private fun formatClock(hour: Int, minute: Int): String {
+        val amPm = if (hour < 12) "AM" else "PM"
+        val displayHour = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        return String.format(Locale.US, "%d:%02d %s", displayHour, minute, amPm)
     }
 
     private fun requestPermissions() {

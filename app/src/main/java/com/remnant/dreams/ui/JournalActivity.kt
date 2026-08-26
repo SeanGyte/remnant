@@ -18,6 +18,7 @@ import com.remnant.dreams.R
 import com.remnant.dreams.alarm.AlarmActivity
 import com.remnant.dreams.alarm.AlarmRingingState
 import com.remnant.dreams.alarm.AlarmScheduler
+import com.remnant.dreams.alarm.CompanionAlarm
 import com.remnant.dreams.billing.BillingManager
 import com.remnant.dreams.billing.ProGate
 import com.remnant.dreams.data.DreamDatabase
@@ -175,13 +176,11 @@ class JournalActivity : AppCompatActivity() {
 
         // Check for nearby alarms
         val alarmManager = getSystemService(AlarmManager::class.java)
-        val nextAlarm = alarmManager.nextAlarmClock
+        val nextTime = alarmManager.nextAlarmClock?.triggerTime
 
-        if (nextAlarm != null) {
-            val nextTime = nextAlarm.triggerTime
-
+        if (nextTime != null) {
             // Is there any alarm from another app before ours?
-            if (nextTime < ourAlarmTime && kotlin.math.abs(nextTime - ourAlarmTime) >= 1000) {
+            if (CompanionAlarm.isCompanion(nextTime, ourAlarmTime)) {
                 // Companion mode -- figure out the other alarm's time for display
                 val otherCal = Calendar.getInstance().apply { timeInMillis = nextTime }
                 val otherHour = otherCal.get(Calendar.HOUR_OF_DAY)

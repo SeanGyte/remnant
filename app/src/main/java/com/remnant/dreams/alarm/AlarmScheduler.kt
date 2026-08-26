@@ -84,24 +84,15 @@ object AlarmScheduler {
         ourAlarmTimeMs: Long
     ): Boolean {
         try {
-            val nextAlarm = alarmManager.nextAlarmClock ?: return false
-            val nextAlarmTime = nextAlarm.triggerTime
+            val nextAlarmTime = alarmManager.nextAlarmClock?.triggerTime
+            val minutesBefore = CompanionAlarm.minutesBefore(nextAlarmTime, ourAlarmTimeMs)
 
-            // If the next system alarm IS our alarm (same time, within 1s tolerance), no companion.
-            if (kotlin.math.abs(nextAlarmTime - ourAlarmTimeMs) < 1000) {
-                Log.d(TAG, "Next alarm is ours -- no companion")
-                return false
-            }
-
-            // If there's any alarm from another app BEFORE ours, companion mode.
-            // The user will already be awake by the time we fire.
-            if (nextAlarmTime < ourAlarmTimeMs) {
-                val minutesBefore = (ourAlarmTimeMs - nextAlarmTime) / 60000
+            if (minutesBefore != null) {
                 Log.d(TAG, "Companion alarm detected: ${minutesBefore}m before ours")
                 return true
             }
 
-            Log.d(TAG, "Next alarm is after ours -- no companion")
+            Log.d(TAG, "No earlier alarm from anything else -- no companion")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to check for companion alarm: ${e.message}")
         }

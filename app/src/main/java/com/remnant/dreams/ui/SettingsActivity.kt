@@ -8,6 +8,9 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.android.billingclient.api.ProductDetails
 import com.remnant.dreams.BuildConfig
@@ -72,18 +75,11 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        // Take the error down the moment they start supplying what it asked for.
+        binding.editName.doAfterTextChanged { binding.textNameError.visibility = View.GONE }
+
         binding.btnSaveName.setOnClickListener {
-            val name = binding.editName.text.toString().trim()
-            if (name.isNotEmpty()) {
-                val changed = name != prefs.userName
-                prefs.userName = name
-                // Only a selected Cloud voice needs regenerating -- the phone's own voice
-                // reads the new name without anything being sent anywhere.
-                if (changed) {
-                    VoiceOption.selectedOrNull(prefs.selectedVoiceId)?.let { regeneratePrompt(it) }
-                }
-                Toast.makeText(this, "Name updated", Toast.LENGTH_SHORT).show()
-            }
+            saveName()
         }
 
         binding.btnChangeVoice.setOnClickListener {
@@ -101,6 +97,37 @@ class SettingsActivity : AppCompatActivity() {
         binding.textVersion.text = "Remnant v${BuildConfig.VERSION_NAME}"
 
         setupProSection()
+    }
+
+    /**
+     * Commits whatever is in the name field, or says why it won't.
+     *
+     * @return true if the name was saved, false if it was empty and the user was asked for one.
+     */
+    private fun saveName(): Boolean {
+        val name = binding.editName.text.toString().trim()
+        if (name.isEmpty()) {
+            // Saving an empty name used to do nothing at all, with no word about why. The
+            // complaint goes on its own line under the field rather than on the EditText:
+            // a TextView error is a popup Android only raises while the field has focus, so
+            // it renders nothing when the user has tapped away. Focus the field and raise
+            // the keyboard so the next move is obvious.
+            binding.textNameError.visibility = View.VISIBLE
+            binding.editName.requestFocus()
+            WindowCompat.getInsetsController(window, binding.editName)
+                .show(WindowInsetsCompat.Type.ime())
+            return false
+        }
+
+        val changed = name != prefs.userName
+        prefs.userName = name
+        // Only a selected Cloud voice needs regenerating -- the phone's own voice
+        // reads the new name without anything being sent anywhere.
+        if (changed) {
+            VoiceOption.selectedOrNull(prefs.selectedVoiceId)?.let { regeneratePrompt(it) }
+        }
+        Toast.makeText(this, "Name updated", Toast.LENGTH_SHORT).show()
+        return true
     }
 
     private fun setupProSection() {
@@ -313,7 +340,14 @@ class SettingsActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_save -> {
-                finish()
+                // SAVE used to just finish(), dropping a typed-but-unsaved name on the floor
+                // without a word. Commit the pending edit first, and stay put if it can't be
+                // committed so the empty-name complaint is there to be read. An untouched
+                // field has nothing to save, so that still leaves quietly.
+                val pendingName = binding.editName.text.toString().trim()
+                if (pendingName == prefs.userName || saveName()) {
+                    finish()
+                }
                 true
             }
             else -> super.onOptionsItemSelected(item)

@@ -49,6 +49,8 @@
                 android:layout_weight="1"
                 android:textSize="18sp"
                 android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_secondary"
+                android:hint="@string/onboarding_name_hint"
                 android:inputType="textPersonName"
                 android:background="@null"
                 android:padding="8dp" />
@@ -62,6 +64,22 @@
                 android:textColor="@color/accent" />
 
         </LinearLayout>
+
+        <!--
+            The name field is a plain EditText with no TextInputLayout to hang an error on,
+            and a TextView error is a popup Android only raises while the field has focus,
+            so an empty name gets its own line here instead. Shown by SettingsActivity when
+            the save is refused, hidden again as soon as the user types.
+        -->
+        <TextView
+            android:id="@+id/textNameError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/onboarding_name_required"
+            android:textSize="13sp"
+            android:textColor="@color/error"
+            android:layout_marginTop="4dp"
+            android:visibility="gone" />
 
         <View
             android:layout_width="match_parent"
@@ -169,6 +187,7 @@
                 android:id="@+id/switchAlarm"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:contentDescription="@string/settings_alarm_switch_description"
                 app:thumbTint="@color/accent"
                 app:trackTint="@color/divider" />
 

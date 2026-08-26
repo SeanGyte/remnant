@@ -18,13 +18,16 @@ import com.remnant.dreams.RemnantApp
 import com.remnant.dreams.data.DreamDatabase
 import com.remnant.dreams.data.DreamEntry
 import com.remnant.dreams.data.PrefsManager
+import com.remnant.dreams.data.TranscriptPlaceholders
 import com.remnant.dreams.ui.JournalActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.time.LocalDate
@@ -44,6 +47,16 @@ class DreamCaptureService : Service() {
     private var lastSpeechTime = 0L
     private var captureStartTime = 0L
     private var silenceCheckRunning = false
+
+    // Row id of the entry created by the first transcribed segment, so later segments and
+    // the final save update that row instead of inserting a second one. 0 means "not saved
+    // yet". Only ever read or written inside a saveScope block (see enqueueWrite).
+    @Volatile
+    private var draftEntryId = 0L
+
+    // Tail of the write chain. Only touched on the main thread, which is where every
+    // recogniser callback and every stopAndSave/dismiss call runs.
+    private var pendingWrite: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -234,7 +247,9 @@ class DreamCaptureService : Service() {
                         accumulatedTranscription.append(text)
                         lastSpeechTime = System.currentTimeMillis()
                         hasSpeechBeenDetected = true
-                        Log.d(TAG, "Transcription segment: ${text.take(50)}...")
+                        // Never log the text itself -- it is the user's private journal.
+                        Log.d(TAG, "Transcription segment: ${text.length} chars")
+                        persistProgress()
                     }
                 }
                 restartListening()
@@ -281,6 +296,62 @@ class DreamCaptureService : Service() {
         }
     }
 
+    /**
+     * Queues a database write on [saveScope], after every write queued before it.
+     *
+     * Chaining on the previous job is what keeps [draftEntryId] race-free: the chain is
+     * built on the main thread, so the order is the order the segments arrived in, and a
+     * block cannot start until the block that may have assigned the row id has finished.
+     * A single-threaded dispatcher would not be enough on its own, because Room's suspend
+     * calls release the thread mid-write and the next segment could overtake them.
+     */
+    private fun enqueueWrite(block: suspend () -> Unit) {
+        val previous = pendingWrite
+        pendingWrite = saveScope.launch {
+            previous?.join()
+            try {
+                block()
+            } catch (e: Exception) {
+                Log.e(TAG, "Dream write failed: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Writes the transcript so far to the database as each segment lands, so a crash or an
+     * out-of-memory kill mid-capture leaves the user with what they have said rather than
+     * nothing. The audio path is deliberately left off until the final save -- until the
+     * recorder is stopped the m4a has no moov atom and cannot be played back.
+     */
+    private fun persistProgress() {
+        val transcription = accumulatedTranscription.toString().trim()
+        if (transcription.isEmpty()) return
+
+        val duration = ((System.currentTimeMillis() - captureStartTime) / 1000).toInt()
+        val context = applicationContext
+        enqueueWrite {
+            val dao = DreamDatabase.getInstance(context).dreamDao()
+            if (draftEntryId == 0L) {
+                draftEntryId = dao.insert(
+                    DreamEntry(
+                        transcription = transcription,
+                        durationSeconds = duration,
+                        isFragment = transcription.length < FRAGMENT_MAX_CHARS
+                    )
+                )
+            } else {
+                val existing = dao.getDreamById(draftEntryId) ?: return@enqueueWrite
+                dao.update(
+                    existing.copy(
+                        transcription = transcription,
+                        durationSeconds = duration,
+                        isFragment = transcription.length < FRAGMENT_MAX_CHARS
+                    )
+                )
+            }
+        }
+    }
+
     private fun stopAndSave() {
         if (!isCaptureActive) return
         isCaptureActive = false
@@ -291,28 +362,51 @@ class DreamCaptureService : Service() {
 
         val transcription = accumulatedTranscription.toString().trim()
         val duration = ((System.currentTimeMillis() - captureStartTime) / 1000).toInt()
-        val isFragment = transcription.length < 50
+        val isFragment = transcription.length < FRAGMENT_MAX_CHARS
+        val savedAudioPath = audioFile?.absolutePath
 
         Log.d(TAG, "Saving dream: ${transcription.length} chars, ${duration}s, fragment=$isFragment")
 
         if (transcription.isNotEmpty() || audioFile?.exists() == true) {
-            serviceScope.launch {
-                val entry = DreamEntry(
-                    transcription = transcription.ifEmpty { "Couldn't catch the words -- tap to play the recording." },
-                    audioPath = audioFile?.absolutePath,
-                    durationSeconds = duration,
-                    isFragment = isFragment
-                )
-                val db = DreamDatabase.getInstance(this@DreamCaptureService)
-                db.dreamDao().insert(entry)
+            val context = applicationContext
+            enqueueWrite {
+                try {
+                    val dao = DreamDatabase.getInstance(context).dreamDao()
+                    val text = transcription.ifEmpty { TranscriptPlaceholders.NO_TRANSCRIPT_WITH_AUDIO }
+                    val existing = if (draftEntryId == 0L) null else dao.getDreamById(draftEntryId)
 
-                val prefs = PrefsManager(this@DreamCaptureService)
-                prefs.totalCaptures += 1
-                updateStreak(prefs)
+                    if (existing == null) {
+                        draftEntryId = dao.insert(
+                            DreamEntry(
+                                transcription = text,
+                                audioPath = savedAudioPath,
+                                durationSeconds = duration,
+                                isFragment = isFragment
+                            )
+                        )
+                    } else {
+                        dao.update(
+                            existing.copy(
+                                transcription = text,
+                                audioPath = savedAudioPath,
+                                durationSeconds = duration,
+                                isFragment = isFragment
+                            )
+                        )
+                    }
 
-                AlarmScheduler.rescheduleForTomorrow(this@DreamCaptureService)
-                broadcastCaptureComplete()
-                stopSelf()
+                    val prefs = PrefsManager(context)
+                    prefs.totalCaptures += 1
+                    updateStreak(prefs)
+                } finally {
+                    // The alarm must be rescheduled and the service stopped even if the
+                    // write blew up, or the user gets no alarm tomorrow.
+                    withContext(Dispatchers.Main) {
+                        AlarmScheduler.rescheduleForTomorrow(context)
+                        broadcastCaptureComplete()
+                        stopSelf()
+                    }
+                }
             }
         } else {
             AlarmScheduler.rescheduleForTomorrow(this)
@@ -414,6 +508,7 @@ class DreamCaptureService : Service() {
     override fun onDestroy() {
         isCaptureActive = false
         silenceCheckRunning = false
+        // serviceScope only -- saveScope is left alone so any queued write still lands.
         serviceScope.cancel()
         try { speechRecognizer?.destroy() } catch (_: Exception) {}
         try { mediaRecorder?.release() } catch (_: Exception) {}
@@ -430,6 +525,13 @@ class DreamCaptureService : Service() {
         private const val INITIAL_WAIT_MS = 15_000L
         private const val SILENCE_TIMEOUT_MS = 8_000L
         private const val MAX_CAPTURE_MS = 600_000L
+        private const val FRAGMENT_MAX_CHARS = 50
+
+        // Database writes have to outlive the service. serviceScope is cancelled in
+        // onDestroy -- correct for the silence monitor and the delayed starts, fatal for a
+        // save still in flight -- so every Room and prefs write runs here instead, on a
+        // scope nothing cancels.
+        private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         fun startCapture(context: Context) {
             val intent = Intent(context, DreamCaptureService::class.java).apply {

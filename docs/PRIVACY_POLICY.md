@@ -1,10 +1,10 @@
 # Privacy Policy for Remnant: Voice Dream Journal
 
-**Last updated:** 7 May 2026
+**Last updated:** 26 August 2026
 
 ## Summary
 
-Remnant is designed with privacy at its core. Your dreams are deeply personal -- we treat them that way. All voice recordings and transcriptions stay on your device. We do not collect, store, or transmit your dream data.
+Remnant is designed with privacy at its core. Your dreams are deeply personal -- we treat them that way. Your voice recordings and transcriptions are stored on your device, and Remnant does not collect, store, or transmit your dream data. The one thing that can leave your device without you choosing it is the audio handed to Android's speech recogniser for transcription, and only on devices without an offline language pack -- see Speech Recognition below.
 
 ## What Data Stays on Your Device
 
@@ -13,27 +13,33 @@ Remnant is designed with privacy at its core. Your dreams are deeply personal --
 - **Journal entries** including dates, times, and any edits you make
 - **App settings** including your name, alarm time, and preferences
 
-All of this data is stored locally on your Android device and is never uploaded to any server.
+All of this data is stored locally on your Android device. Remnant does not upload it to any server.
 
 ## What Data Leaves Your Device
 
-### Voice Prompt Generation (Optional)
+### Voice Prompt Generation (off unless you turn it on)
 
-If you select a Cloud voice for your morning prompt, a short text string (e.g. "Good morning Sean, what did you dream about last night?") is sent to Google Cloud Text-to-Speech to generate the audio. This text contains only your first name and a generic prompt -- no dream content is ever sent.
+Your morning prompt is spoken by your phone's built-in voice. Nothing is sent to any server in that case.
+
+Cloud voices are an option you have to switch on yourself. The checkbox in setup is unticked, and choosing a Cloud voice later in Settings is an explicit choice. While it is off, the app makes no text-to-speech network call at all.
+
+If you switch it on, a short text string (e.g. "Good morning Sean, what did you dream about last night?") is sent to Google Cloud Text-to-Speech to generate the audio. That string is everything that is sent: your first name and a fixed prompt. No dream content, recordings, or transcriptions are sent.
 
 The generated audio is cached on your device so this request only happens when you change your name or voice selection.
 
-You can avoid this entirely by using the built-in on-device voice, which sends nothing to any server.
-
 ### Speech Recognition
 
-Dream transcription uses Android's built-in SpeechRecognizer with offline mode enabled. Your voice recordings are processed on your device. No audio is sent to cloud services for transcription.
+Dream transcription uses Android's built-in SpeechRecognizer. Remnant asks for on-device recognition on every request, and on most phones that means the audio never leaves the device.
+
+That request is a preference, not a guarantee. If your device has no offline language pack installed for your language, Android's speech service may process the audio on Google's servers instead. Google's privacy policy applies to what happens there, and Remnant cannot prevent or detect it. You can install the offline language pack in your Android settings (under voice input or speech recognition) to keep transcription fully on-device.
+
+Remnant itself never uploads recordings or transcriptions anywhere.
 
 ## What We Do NOT Do
 
 - We do not collect analytics or usage data
 - We do not serve advertisements
-- We do not sell, share, or transmit your data to third parties
+- We do not sell or share your data, and we do not transmit it to third parties beyond the two cases described above
 - We do not require an account or login
 - We do not use tracking pixels, cookies, or fingerprinting
 - We do not access your contacts, photos, location, or any data unrelated to the app's function
@@ -55,6 +61,8 @@ You control how long your data is kept:
 - **Audio recordings:** Configurable retention (7, 30, 90 days, or forever)
 - **Transcriptions:** Configurable retention (90, 365 days, or forever)
 - **Deleting entries:** You can delete any individual dream entry at any time, which removes both the transcription and audio file permanently
+
+Retention is applied by a clean-up task that runs once a day in the background, so an entry can sit on the device for a short time past its cut-off until that pass runs. When it does, the transcription and its audio file are deleted permanently and cannot be recovered.
 
 Uninstalling the app removes all data.
 

@@ -1,6 +1,9 @@
 # Remnant -- Release Checklist (Google Play)
 
-**Last updated:** 23 Aug 2026 (v1.2.0, versionCode 3)
+**Last updated:** 26 Aug 2026 (v1.2.0, versionCode 3)
+
+The AAB listed under DONE predates the 26 Aug privacy/code-review fixes. Rebuild it
+(`gradlew bundleRelease`) before any upload.
 
 Ordered path to launch. Three lanes: what is already done, what Moose can do on
 request, and what only Sean can do (identity, money, accounts -- always his call).
@@ -59,6 +62,13 @@ These involve your identity, your card, or judgement calls that are yours to mak
    - On-device SpeechRecognizer transcription quality on real morning speech --
      this is the existential risk flagged by all three founders
    - Offline language pack prompt/download behaviour
+   - Play back a saved recording and confirm you can hear the voice. A file
+     existing is not a pass: when SpeechRecognizer and MediaRecorder contend for
+     the mic under the Android 10+ concurrent-capture policy, the losing client
+     is usually handed silence rather than an error, so a valid, non-empty m4a of
+     nothing is the expected failure mode. The scenario to catch is a transcript
+     reading "Couldn't catch the words -- tap to play the recording" and 40
+     seconds of silence behind it
    - Full alarm -> wake -> capture -> journal flow, plus companion mode
    - Edge-to-edge layouts (new in v1.2.0): all screens on an Android 15/16 device --
      nothing under the status bar, nav bar, or camera cutout

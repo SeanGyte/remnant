@@ -53,6 +53,41 @@ Play Console > Setup > App signing > "Request upload key reset" instead.
 
 ---
 
+## BEFORE EVERY AAB UPLOAD (required)
+
+Short list, checked every time, before the bundle goes anywhere.
+
+- [ ] `gradlew test` and `gradlew assembleDebug` both pass
+- [ ] **Onboarding renders fully on a small screen.** Install the build on a budget
+      phone and/or run a small-screen emulator profile (e.g. a 5" 720p / 320dp-wide
+      device) and confirm the whole onboarding screen is visible: name field, alarm
+      time, voice hint and voice button, and the "Start Capturing Dreams" button --
+      nothing clipped, cut off, or pushed under the navigation bar. The layout has no
+      ScrollView, so anything that overflows is simply unreachable and the app cannot
+      be set up at all. This is a required item on its own, not part of the
+      budget-device test below.
+- [ ] Privacy policy (`docs/PRIVACY_POLICY.md` and the hosted `docs/index.html`) still
+      matches what the code does
+
+## Schema changes
+
+The Room database has no destructive-migration fallback and exports its schema, so a
+version bump without a migration crashes every upgrading user instead of silently
+wiping their journal. `DreamDatabaseVersionTest` pins the version and fails the suite
+with these instructions if it changes.
+
+Whenever the schema changes, all four steps, in order:
+
+1. Write a Room `Migration` for the old -> new step. Never reintroduce
+   `fallbackToDestructiveMigration()`.
+2. Commit the newly exported schema JSON under
+   `app/schemas/com.remnant.dreams.data.DreamDatabase/`.
+3. Add a migration test that opens the old version, runs the migration, and checks the
+   data survived.
+4. Only then update `PINNED_VERSION` in `DreamDatabaseVersionTest` to match.
+
+---
+
 ## SEAN-ONLY (in order)
 
 These involve your identity, your card, or judgement calls that are yours to make.
@@ -90,6 +125,8 @@ These involve your identity, your card, or judgement calls that are yours to mak
    you are there (open question #1 in PROJECT.md).
 
 5. **Upload the AAB to Internal testing** (Release > Testing > Internal testing).
+   Work through "BEFORE EVERY AAB UPLOAD" above first -- the small-screen onboarding
+   check in particular.
    This first upload is what registers Play App Signing and -- because the billing
    library adds the `com.android.vending.BILLING` permission -- unlocks in-app
    product creation.

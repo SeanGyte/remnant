@@ -18,7 +18,9 @@ import java.util.Calendar
  * Daily worker that re-encodes audio files older than 7 days from
  * 128kbps/44.1kHz AAC down to 32kbps/16kHz mono AAC to save storage.
  *
- * If re-encoding fails for any file, the original is kept untouched.
+ * If re-encoding fails for any file, the original is kept untouched. The replacement
+ * is rename-first: the original is only removed once the compressed file has been
+ * verified in its place, so a failure can never leave the entry without a recording.
  */
 class AudioCompressionWorker(
     context: Context,
@@ -32,6 +34,18 @@ class AudioCompressionWorker(
         private const val TARGET_SAMPLE_RATE = 16_000
         private const val TARGET_CHANNEL_COUNT = 1
         private const val CODEC_TIMEOUT_US = 10_000L
+        private const val BACKUP_SUFFIX = ".bak"
+    }
+
+    private enum class ReencodeResult {
+        /** A smaller file was written to the destination, ready to replace the original. */
+        ENCODED,
+
+        /** The source is already at or below the target format, so there is nothing to replace. */
+        ALREADY_SMALL,
+
+        /** Nothing usable was produced -- the original must be kept as it is. */
+        FAILED
     }
 
     override suspend fun doWork(): Result {
@@ -52,6 +66,8 @@ class AudioCompressionWorker(
         for (entry in entries) {
             val audioPath = entry.audioPath ?: continue
             val sourceFile = File(audioPath)
+            restoreInterruptedSwap(sourceFile)
+
             if (!sourceFile.exists() || sourceFile.length() == 0L) {
                 // File is gone or empty -- mark as compressed so we don't keep retrying
                 dao.update(entry.copy(isCompressed = true))
@@ -61,22 +77,31 @@ class AudioCompressionWorker(
             val tempFile = File(sourceFile.parent, "${sourceFile.nameWithoutExtension}_compressed.m4a")
 
             try {
-                val success = reencodeAac(sourceFile, tempFile)
-                if (success && tempFile.exists() && tempFile.length() > 0) {
-                    // Replace original with compressed version
-                    if (sourceFile.delete()) {
-                        tempFile.renameTo(sourceFile)
+                when (reencodeAac(sourceFile, tempFile)) {
+                    ReencodeResult.ALREADY_SMALL -> {
+                        // Nothing was written and nothing needs replacing; marking the entry
+                        // stops the daily worker re-decoding this file forever.
                         dao.update(entry.copy(isCompressed = true))
-                        Log.d(TAG, "Compressed ${sourceFile.name}: ${sourceFile.length()} bytes")
-                    } else {
-                        // Couldn't delete original -- clean up temp and skip
-                        tempFile.delete()
-                        Log.w(TAG, "Couldn't delete original: ${sourceFile.name}")
+                        Log.d(TAG, "${sourceFile.name} already at target format, nothing to do")
                     }
-                } else {
-                    // Re-encode failed or produced empty file -- keep original
-                    tempFile.delete()
-                    Log.w(TAG, "Re-encode failed for ${sourceFile.name}, keeping original")
+
+                    ReencodeResult.ENCODED -> {
+                        if (tempFile.exists() && tempFile.length() > 0 &&
+                            swapInCompressedFile(sourceFile, tempFile)
+                        ) {
+                            dao.update(entry.copy(isCompressed = true))
+                            Log.d(TAG, "Compressed ${sourceFile.name}: ${sourceFile.length()} bytes")
+                        } else {
+                            tempFile.delete()
+                            Log.w(TAG, "Couldn't replace ${sourceFile.name}, keeping original")
+                        }
+                    }
+
+                    ReencodeResult.FAILED -> {
+                        // Re-encode failed or produced an empty file -- keep original
+                        tempFile.delete()
+                        Log.w(TAG, "Re-encode failed for ${sourceFile.name}, keeping original")
+                    }
                 }
             } catch (e: Exception) {
                 // Any unexpected error -- keep original, clean up temp
@@ -88,11 +113,68 @@ class AudioCompressionWorker(
         return Result.success()
     }
 
+    private fun backupFileFor(source: File) = File(source.parent, source.name + BACKUP_SUFFIX)
+
+    /**
+     * Puts the original recording back if a previous pass died between moving it aside
+     * and renaming the compressed file into its place.
+     */
+    private fun restoreInterruptedSwap(source: File) {
+        if (source.exists()) return
+        val backup = backupFileFor(source)
+        if (!backup.exists()) return
+
+        if (backup.renameTo(source)) {
+            Log.w(TAG, "Restored ${source.name} from an interrupted compression swap")
+        } else {
+            Log.e(TAG, "Couldn't restore ${source.name} from ${backup.name}")
+        }
+    }
+
+    /**
+     * Puts [compressed] at [source]'s path, keeping the original until the replacement is
+     * verified in place. Returns true only once a non-empty file sits at [source].
+     *
+     * The original is moved aside, never deleted first: if any step fails it is renamed
+     * back and the compressed copy is the one thrown away, so a valid recording always
+     * exists at either the source path or the backup path.
+     */
+    private fun swapInCompressedFile(source: File, compressed: File): Boolean {
+        val backup = backupFileFor(source)
+        if (backup.exists() && !backup.delete()) {
+            Log.w(TAG, "Couldn't clear stale backup: ${backup.name}")
+            return false
+        }
+
+        if (!source.renameTo(backup)) {
+            Log.w(TAG, "Couldn't move original aside: ${source.name}")
+            return false
+        }
+
+        if (!compressed.renameTo(source) || !source.exists() || source.length() == 0L) {
+            source.delete()
+            if (!backup.renameTo(source)) {
+                Log.e(TAG, "Couldn't restore original from ${backup.name}")
+            }
+            return false
+        }
+
+        if (!backup.delete()) {
+            // The compressed file is already in place, so the recording is safe; the
+            // stale backup is cleared on the next pass over this entry.
+            Log.w(TAG, "Couldn't delete backup: ${backup.name}")
+        }
+        return true
+    }
+
     /**
      * Re-encodes an AAC audio file to lower bitrate/sample rate using MediaCodec.
-     * Returns true on success, false on failure.
+     *
+     * Returns [ReencodeResult.ENCODED] when [dest] holds the re-encoded audio,
+     * [ReencodeResult.ALREADY_SMALL] when the source is already at or below the target
+     * format and nothing was written, or [ReencodeResult.FAILED] otherwise.
      */
-    private fun reencodeAac(source: File, dest: File): Boolean {
+    private fun reencodeAac(source: File, dest: File): ReencodeResult {
         var extractor: MediaExtractor? = null
         var decoder: MediaCodec? = null
         var encoder: MediaCodec? = null
@@ -106,19 +188,19 @@ class AudioCompressionWorker(
             }
 
             // Find the audio track
-            val trackIndex = findAudioTrack(extractor) ?: return false
+            val trackIndex = findAudioTrack(extractor) ?: return ReencodeResult.FAILED
             extractor.selectTrack(trackIndex)
             val inputFormat = extractor.getTrackFormat(trackIndex)
 
-            val inputMime = inputFormat.getString(MediaFormat.KEY_MIME) ?: return false
+            val inputMime = inputFormat.getString(MediaFormat.KEY_MIME) ?: return ReencodeResult.FAILED
             val inputSampleRate = inputFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             val inputChannelCount = inputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
 
-            // If already at or below target params, just mark as compressed
+            // If already at or below target params, there is nothing worth re-encoding
             if (inputSampleRate <= TARGET_SAMPLE_RATE && inputChannelCount <= TARGET_CHANNEL_COUNT) {
                 val bitrate = inputFormat.getIntegerOrDefault(MediaFormat.KEY_BIT_RATE, Int.MAX_VALUE)
                 if (bitrate <= TARGET_BITRATE) {
-                    return true // Already small enough
+                    return ReencodeResult.ALREADY_SMALL
                 }
             }
 
@@ -268,11 +350,12 @@ class AudioCompressionWorker(
                 }
             }
 
-            return muxerStarted // Only true if we actually wrote data
+            // Only ENCODED if we actually wrote data
+            return if (muxerStarted) ReencodeResult.ENCODED else ReencodeResult.FAILED
 
         } catch (e: Exception) {
             Log.e(TAG, "Re-encode failed", e)
-            return false
+            return ReencodeResult.FAILED
         } finally {
             try { extractor?.release() } catch (_: Exception) {}
             try { decoder?.stop(); decoder?.release() } catch (_: Exception) {}

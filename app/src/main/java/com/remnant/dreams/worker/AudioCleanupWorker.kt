@@ -4,17 +4,37 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.remnant.dreams.data.DreamDao
 import com.remnant.dreams.data.DreamDatabase
 import com.remnant.dreams.data.PrefsManager
+import com.remnant.dreams.data.TranscriptPlaceholders
 import java.io.File
 import java.util.Calendar
 
 /**
- * Daily worker that deletes audio files older than the user's retention setting,
- * and updates the database entries accordingly.
+ * The timestamp before which data has aged out of a [retentionDays]-day window.
  *
- * If the transcript was a fallback "couldn't catch the words" message, it gets
- * updated to something that doesn't reference a recording that no longer exists.
+ * A retention of 0 means "keep forever" -- that is the caller's decision, not this
+ * function's, so 0 simply yields [nowMillis] here.
+ */
+internal fun retentionCutoffMillis(nowMillis: Long, retentionDays: Int): Long {
+    return Calendar.getInstance().apply {
+        timeInMillis = nowMillis
+        add(Calendar.DAY_OF_YEAR, -retentionDays)
+    }.timeInMillis
+}
+
+/**
+ * Daily worker that enforces the two retention settings, which are independent of
+ * each other and both run on every pass:
+ *
+ * - Audio retention: deletes audio files older than the setting and clears the
+ *   entry's audio path. If the transcript was the "tap to play the recording"
+ *   placeholder, it is rewritten so it no longer points at a recording that is gone.
+ * - Transcript retention: deletes entries older than the setting outright, removing
+ *   any audio files they still own first so nothing is orphaned on disk.
+ *
+ * Either setting can be 0, meaning "keep forever".
  */
 class AudioCleanupWorker(
     context: Context,
@@ -23,36 +43,30 @@ class AudioCleanupWorker(
 
     companion object {
         private const val TAG = "AudioCleanupWorker"
-
-        // The fallback transcript that references "tap to play the recording"
-        private const val FALLBACK_TRANSCRIPT =
-            "Couldn't catch the words \u2014 tap to play the recording."
-
-        // Replacement when the audio file has been cleaned up
-        private const val CLEANED_TRANSCRIPT =
-            "Dream captured but transcript unavailable."
     }
 
     override suspend fun doWork(): Result {
         val prefs = PrefsManager(applicationContext)
-        val retentionDays = prefs.audioRetentionDays
+        val dao = DreamDatabase.getInstance(applicationContext).dreamDao()
+        val now = System.currentTimeMillis()
 
-        // 0 = keep forever
+        cleanUpExpiredAudio(dao, prefs.audioRetentionDays, now)
+        deleteExpiredEntries(dao, prefs.transcriptRetentionDays, now)
+
+        return Result.success()
+    }
+
+    private suspend fun cleanUpExpiredAudio(dao: DreamDao, retentionDays: Int, now: Long) {
         if (retentionDays == 0) {
-            Log.d(TAG, "Audio retention set to forever, nothing to do")
-            return Result.success()
+            Log.d(TAG, "Audio retention set to forever, no audio cleanup")
+            return
         }
 
-        val dao = DreamDatabase.getInstance(applicationContext).dreamDao()
-
-        val cutoff = Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -retentionDays)
-        }.timeInMillis
-
+        val cutoff = retentionCutoffMillis(now, retentionDays)
         val entries = dao.getEntriesWithAudioOlderThan(cutoff)
         if (entries.isEmpty()) {
             Log.d(TAG, "No audio files older than $retentionDays days to clean up")
-            return Result.success()
+            return
         }
 
         Log.d(TAG, "Cleaning up ${entries.size} audio files older than $retentionDays days")
@@ -71,8 +85,11 @@ class AudioCleanupWorker(
             }
 
             // Update the database
-            if (entry.transcription.trim() == FALLBACK_TRANSCRIPT) {
-                dao.clearAudioAndUpdateTranscription(entry.id, CLEANED_TRANSCRIPT)
+            if (entry.transcription.trim() == TranscriptPlaceholders.NO_TRANSCRIPT_WITH_AUDIO) {
+                dao.clearAudioAndUpdateTranscription(
+                    entry.id,
+                    TranscriptPlaceholders.NO_TRANSCRIPT_AUDIO_DELETED
+                )
             } else {
                 dao.clearAudioPath(entry.id)
             }
@@ -81,6 +98,37 @@ class AudioCleanupWorker(
         }
 
         Log.d(TAG, "Cleaned up $deleted audio files")
-        return Result.success()
+    }
+
+    private suspend fun deleteExpiredEntries(dao: DreamDao, retentionDays: Int, now: Long) {
+        if (retentionDays == 0) {
+            Log.d(TAG, "Transcript retention set to forever, no entries deleted")
+            return
+        }
+
+        val cutoff = retentionCutoffMillis(now, retentionDays)
+
+        // These rows are about to go, so their audio files have to go with them or
+        // they sit on disk with nothing referencing them.
+        var audioDeleted = 0
+        for (entry in dao.getEntriesWithAudioOlderThan(cutoff)) {
+            val file = File(entry.audioPath ?: continue)
+            if (!file.exists()) continue
+            if (file.delete()) {
+                audioDeleted++
+            } else {
+                Log.w(TAG, "Couldn't delete audio for expiring entry ${entry.id}")
+            }
+        }
+
+        val before = dao.getTotalCount()
+        dao.deleteOlderThan(cutoff)
+        val removed = before - dao.getTotalCount()
+
+        Log.d(
+            TAG,
+            "Transcript retention $retentionDays days: deleted $removed entries " +
+                    "and $audioDeleted audio files"
+        )
     }
 }

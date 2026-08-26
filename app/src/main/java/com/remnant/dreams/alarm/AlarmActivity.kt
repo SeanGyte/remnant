@@ -31,6 +31,8 @@ import com.remnant.dreams.ui.EdgeToEdgeUtil
 import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.databinding.ActivityAlarmBinding
 import com.remnant.dreams.tts.CloudTtsGenerator
+import com.remnant.dreams.tts.VoiceOption
+import java.io.File
 import java.util.Locale
 
 class AlarmActivity : AppCompatActivity() {
@@ -120,7 +122,7 @@ class AlarmActivity : AppCompatActivity() {
      * When playback finishes, start listening for any voice activity.
      */
     private fun playWakeCheck() {
-        val cachedWakeCheck = CloudTtsGenerator(this).getCachedPrompt(CloudTtsGenerator.PROMPT_WAKE_CHECK)
+        val cachedWakeCheck = cachedCloudPrompt(CloudTtsGenerator.PROMPT_WAKE_CHECK)
         if (cachedWakeCheck != null) {
             try {
                 promptPlayer = MediaPlayer().apply {
@@ -411,9 +413,18 @@ class AlarmActivity : AppCompatActivity() {
 
     // ── Shared: Dream Prompt & Capture ────────────────────────────────────
 
+    /**
+     * Cached Cloud prompt audio, but only while a Cloud voice is actually selected --
+     * selecting one is the consent to use it, so unselecting it drops back to the phone's
+     * own voice even if old audio is still sitting in the cache.
+     */
+    private fun cachedCloudPrompt(promptType: String): File? =
+        if (VoiceOption.selectedOrNull(prefs.selectedVoiceId) == null) null
+        else CloudTtsGenerator(this).getCachedPrompt(promptType)
+
     private fun playPrompt() {
         // Try cached Cloud TTS dream prompt first
-        val cachedPrompt = CloudTtsGenerator(this).getCachedPrompt(CloudTtsGenerator.PROMPT_DREAM)
+        val cachedPrompt = cachedCloudPrompt(CloudTtsGenerator.PROMPT_DREAM)
         if (cachedPrompt != null) {
             try {
                 promptPlayer = MediaPlayer().apply {

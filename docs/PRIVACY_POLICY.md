@@ -17,15 +17,15 @@ All of this data is stored locally on your Android device. Remnant does not uplo
 
 ## What Data Leaves Your Device
 
-### Voice Prompt Generation (off unless you turn it on)
+### Voice Prompt Generation (only if you select a Cloud voice)
 
-Your morning prompt is spoken by your phone's built-in voice. Nothing is sent to any server in that case.
+Your morning prompt is spoken by your phone's built-in voice unless you select one of the Cloud voices. Nothing is sent to any server while your phone's own voice is selected, which is how the app starts and stays until you change it.
 
-Cloud voices are an option you have to switch on yourself. The checkbox in setup is unticked, and choosing a Cloud voice later in Settings is an explicit choice. While it is off, the app makes no text-to-speech network call at all.
+Selecting a Cloud voice is the choice: no voice is selected for you, and the picker -- in setup or in Settings -- tells you what a Cloud voice sends before you pick one. Until you select one, the app makes no text-to-speech network call at all.
 
-If you switch it on, a short text string (e.g. "Good morning Sean, what did you dream about last night?") is sent to Google Cloud Text-to-Speech to generate the audio. That string is everything that is sent: your first name and a fixed prompt. No dream content, recordings, or transcriptions are sent.
+If you select one, a short text string (e.g. "Good morning Sean, what did you dream about last night?") is sent to Google Cloud Text-to-Speech to generate the audio. That string is everything that is sent: your first name and a fixed prompt. No dream content, recordings, or transcriptions are sent.
 
-The generated audio is cached on your device so this request only happens when you change your name or voice selection.
+The generated audio is cached on your device so this request only happens when you change your name or voice selection. Choosing your phone's own voice again in the picker deletes that cached audio and stops the requests.
 
 ### Speech Recognition
 

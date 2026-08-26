@@ -77,7 +77,11 @@ class SettingsActivity : AppCompatActivity() {
             if (name.isNotEmpty()) {
                 val changed = name != prefs.userName
                 prefs.userName = name
-                if (changed) regeneratePrompt()
+                // Only a selected Cloud voice needs regenerating -- the phone's own voice
+                // reads the new name without anything being sent anywhere.
+                if (changed) {
+                    VoiceOption.selectedOrNull(prefs.selectedVoiceId)?.let { regeneratePrompt(it) }
+                }
                 Toast.makeText(this, "Name updated", Toast.LENGTH_SHORT).show()
             }
         }
@@ -184,26 +188,36 @@ class SettingsActivity : AppCompatActivity() {
         billing.purchaseOutcomeListener = null
     }
 
+    /**
+     * Opens the voice picker, which is where consent to Cloud text-to-speech is given and
+     * taken back: selecting a Cloud voice is the consent, and choosing the phone's own
+     * voice withdraws it, cached audio and all.
+     */
     private fun showVoicePicker() {
         val dialog = VoicePreviewDialogFragment()
         dialog.onVoiceSelected = { voice ->
-            prefs.selectedVoiceId = voice.id
-            // Picking a voice here is the same explicit consent the onboarding checkbox
-            // records, so the flag stays an accurate answer to "did the user opt in".
-            prefs.cloudVoiceOptIn = true
+            prefs.selectedVoiceId = voice?.id ?: ""
             updateVoiceDisplay()
-            regeneratePrompt()
+            if (voice != null) {
+                regeneratePrompt(voice)
+            } else {
+                CloudTtsGenerator(this).clearCache()
+                prefs.promptCacheKey = ""
+            }
         }
         dialog.show(supportFragmentManager, VoicePreviewDialogFragment.FRAGMENT_TAG)
     }
 
     private fun updateVoiceDisplay() {
-        val voiceId = prefs.selectedVoiceId.ifEmpty { VoiceOption.DEFAULT.id }
-        val voice = VoiceOption.findById(voiceId)
-        binding.textCurrentVoice.text = "${voice.friendlyName} -- ${voice.description}"
+        val voice = VoiceOption.selectedOrNull(prefs.selectedVoiceId)
+        binding.textCurrentVoice.text = if (voice == null) {
+            getString(R.string.voice_device_name)
+        } else {
+            "${voice.friendlyName} -- ${voice.description}"
+        }
     }
 
-    private fun regeneratePrompt() {
+    private fun regeneratePrompt(voice: VoiceOption) {
         val apiKey = ApiKeys.GOOGLE_CLOUD_TTS
         if (apiKey.isEmpty()) {
             Toast.makeText(this, "API key not configured", Toast.LENGTH_SHORT).show()
@@ -211,8 +225,6 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val name = prefs.userName.ifEmpty { "there" }
-        val voiceId = prefs.selectedVoiceId.ifEmpty { VoiceOption.DEFAULT.id }
-        val voice = VoiceOption.findById(voiceId)
 
         Toast.makeText(this, "Generating voice...", Toast.LENGTH_SHORT).show()
 
@@ -228,7 +240,7 @@ class SettingsActivity : AppCompatActivity() {
             ttsGen.generatePrompt(wakeText, voice, apiKey, CloudTtsGenerator.PROMPT_WAKE_CHECK)
 
             if (dreamResult != null) {
-                prefs.promptCacheKey = "$voiceId|$name"
+                prefs.promptCacheKey = "${voice.id}|$name"
                 Toast.makeText(this@SettingsActivity, "Voice updated", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this@SettingsActivity, "Failed -- will use device voice", Toast.LENGTH_SHORT).show()

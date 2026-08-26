@@ -14,6 +14,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.remnant.dreams.AppScope
+import com.remnant.dreams.R
 import com.remnant.dreams.alarm.AlarmScheduler
 import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.databinding.ActivityOnboardingBinding
@@ -78,6 +79,10 @@ class OnboardingActivity : AppCompatActivity() {
             showTimePicker()
         }
 
+        binding.btnChooseVoice.setOnClickListener {
+            showVoicePicker()
+        }
+
         binding.btnStart.setOnClickListener {
             val name = binding.editName.text.toString().trim()
             if (name.isEmpty()) {
@@ -88,12 +93,40 @@ class OnboardingActivity : AppCompatActivity() {
             prefs.userName = name
             prefs.alarmHour = selectedHour
             prefs.alarmMinute = selectedMinute
-            prefs.cloudVoiceOptIn = binding.checkCloudVoice.isChecked
 
             requestPermissions()
         }
 
         updateTimeDisplay()
+        updateVoiceDisplay()
+    }
+
+    /**
+     * Opens the voice picker. Selecting a Cloud voice there is the consent to use it --
+     * there is nothing else to tick. Leave the phone's own voice selected and Remnant
+     * never calls Google's text-to-speech service.
+     */
+    private fun showVoicePicker() {
+        // Previews greet the user by name, but the name is only saved on Start, so carry
+        // across whatever has been typed so far.
+        val typedName = binding.editName.text.toString().trim()
+        if (typedName.isNotEmpty()) prefs.userName = typedName
+
+        val dialog = VoicePreviewDialogFragment()
+        dialog.onVoiceSelected = { voice ->
+            prefs.selectedVoiceId = voice?.id ?: ""
+            updateVoiceDisplay()
+        }
+        dialog.show(supportFragmentManager, VoicePreviewDialogFragment.FRAGMENT_TAG)
+    }
+
+    private fun updateVoiceDisplay() {
+        val voice = VoiceOption.selectedOrNull(prefs.selectedVoiceId)
+        binding.btnChooseVoice.text = if (voice == null) {
+            getString(R.string.voice_device_name)
+        } else {
+            "${voice.friendlyName} -- ${voice.description}"
+        }
     }
 
     private fun showTimePicker() {
@@ -235,17 +268,15 @@ class OnboardingActivity : AppCompatActivity() {
     }
 
     private fun cacheVoicePrompt() {
-        // The Cloud voice sends the user's name to Google, so it only runs if they asked for it.
-        // With no cached prompt the alarm reads the greeting with the on-device voice instead.
-        if (!prefs.cloudVoiceOptIn) return
+        // Selecting a Cloud voice is the consent to use it, so with none selected there is no
+        // network call at all and the alarm reads the greeting with the on-device voice.
+        val voice = VoiceOption.selectedOrNull(prefs.selectedVoiceId) ?: return
 
         val apiKey = ApiKeys.GOOGLE_CLOUD_TTS
         if (apiKey.isEmpty()) return
 
         val name = prefs.userName.ifEmpty { "there" }
-        val voiceId = prefs.selectedVoiceId.ifEmpty { VoiceOption.DEFAULT.id }
-        val voice = VoiceOption.findById(voiceId)
-        val cacheKey = "$voiceId|$name"
+        val cacheKey = "${voice.id}|$name"
 
         if (prefs.promptCacheKey == cacheKey) return // Already cached
 

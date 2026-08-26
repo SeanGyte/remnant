@@ -29,6 +29,15 @@
             android:textColor="@color/text_secondary"
             android:layout_marginTop="4dp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/voice_cloud_disclosure"
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:lineSpacingMultiplier="1.3"
+            android:layout_marginTop="12dp" />
+
     </LinearLayout>
 
     <View

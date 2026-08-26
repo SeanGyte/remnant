@@ -91,23 +91,37 @@
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="8dp" />
 
-    <com.google.android.material.checkbox.MaterialCheckBox
-        android:id="@+id/checkCloudVoice"
+    <TextView
+        android:id="@+id/textVoiceHint"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="@string/onboarding_cloud_voice"
-        android:textSize="14sp"
+        android:text="@string/onboarding_voice_hint"
+        android:textSize="13sp"
         android:textColor="@color/text_secondary"
         android:lineSpacingMultiplier="1.3"
-        android:checked="false"
-        app:buttonTint="@color/accent"
         app:layout_constraintTop_toBottomOf="@id/btnSetTime"
-        app:layout_constraintBottom_toTopOf="@+id/btnStart"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="20dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnChooseVoice"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textAllCaps="false"
+        android:minHeight="40dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:textColor="@color/white"
+        app:strokeColor="@color/accent"
+        app:layout_constraintTop_toBottomOf="@id/textVoiceHint"
+        app:layout_constraintBottom_toTopOf="@+id/btnStart"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintVertical_bias="0.0"
-        android:layout_marginTop="24dp"
-        android:layout_marginBottom="24dp" />
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="20dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnStart"

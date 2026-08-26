@@ -48,6 +48,10 @@ class PrefsManager(context: Context) {
         get() = prefs.getBoolean(KEY_IS_PRO, false)
         set(value) = prefs.edit().putBoolean(KEY_IS_PRO, value).apply()
 
+    /**
+     * The Cloud voice the user picked, or empty for the phone's own voice. Picking one is
+     * the consent to use Google's text-to-speech service -- see VoiceOption.selectedOrNull.
+     */
     var selectedVoiceId: String
         get() = prefs.getString(KEY_VOICE_ID, "") ?: ""
         set(value) = prefs.edit().putString(KEY_VOICE_ID, value).apply()
@@ -55,14 +59,6 @@ class PrefsManager(context: Context) {
     var promptCacheKey: String
         get() = prefs.getString(KEY_PROMPT_CACHE, "") ?: ""
         set(value) = prefs.edit().putString(KEY_PROMPT_CACHE, value).apply()
-
-    /**
-     * Whether the user has opted in to the Cloud voice, which sends their first name to
-     * Google's text-to-speech service. Off unless they ask for it.
-     */
-    var cloudVoiceOptIn: Boolean
-        get() = prefs.getBoolean(KEY_CLOUD_VOICE_OPT_IN, false)
-        set(value) = prefs.edit().putBoolean(KEY_CLOUD_VOICE_OPT_IN, value).apply()
 
     /** Whether the next alarm should fire in companion mode (another alarm detected nearby). */
     var companionMode: Boolean
@@ -92,7 +88,6 @@ class PrefsManager(context: Context) {
         private const val KEY_IS_PRO = "is_pro"
         private const val KEY_VOICE_ID = "voice_id"
         private const val KEY_PROMPT_CACHE = "prompt_cache_key"
-        private const val KEY_CLOUD_VOICE_OPT_IN = "cloud_voice_opt_in"
         private const val KEY_COMPANION_MODE = "companion_mode"
         private const val KEY_AUDIO_RETENTION = "audio_retention_days"
         private const val KEY_TRANSCRIPT_RETENTION = "transcript_retention_days"

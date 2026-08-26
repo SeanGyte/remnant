@@ -192,8 +192,10 @@ class JournalActivity : AppCompatActivity() {
                 }
                 val otherTimeStr = String.format(Locale.US, "%d:%02d %s", otherDisplayHour, otherMinute, otherAmPm)
 
-                val voiceId = prefs.selectedVoiceId.ifEmpty { VoiceOption.DEFAULT.id }
-                val voiceName = VoiceOption.findById(voiceId).friendlyName
+                // Without a Cloud voice selected it is the phone's own voice asking, which
+                // has no name of its own.
+                val voiceName = VoiceOption.selectedOrNull(prefs.selectedVoiceId)?.friendlyName
+                    ?: "Remnant"
 
                 setModeStatus(
                     "Companion mode -- alarm at $otherTimeStr detected. $voiceName will ask if you're awake at $timeStr. No alarm tone.",

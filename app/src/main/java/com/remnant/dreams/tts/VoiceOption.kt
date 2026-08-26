@@ -21,8 +21,14 @@ data class VoiceOption(
             VoiceOption("en-US-Chirp3-HD-Kore", "Quinn", "The Upbeat", "en-US", "Female"),
         )
 
-        val DEFAULT = ALL[0]
-
-        fun findById(id: String): VoiceOption = ALL.find { it.id == id } ?: DEFAULT
+        /**
+         * The Cloud voice the user has selected, or null if they have not selected one.
+         *
+         * Selecting a voice IS the consent to use Google's text-to-speech service, so there
+         * is deliberately no default: an empty [voiceId] -- or one this build no longer
+         * offers -- means the phone's own voice and no network call.
+         */
+        fun selectedOrNull(voiceId: String): VoiceOption? =
+            if (voiceId.isEmpty()) null else ALL.find { it.id == voiceId }
     }
 }

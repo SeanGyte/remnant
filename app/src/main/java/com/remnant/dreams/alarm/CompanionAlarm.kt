@@ -27,6 +27,18 @@ object CompanionAlarm {
     const val CHECK_IN_DELAY_MINUTES = 5
 
     /**
+     * How far ahead of the phone's own alarm Remnant recommends waking the user.
+     *
+     * This is the recommended setup rather than the quiet one. A dream goes within a minute
+     * or two of getting up, so an ask that comes after the household alarm arrives in the
+     * middle of the rush and catches nothing. Half an hour ahead lands while the dream is
+     * still there and still leaves the usual alarm to run as it always has -- but it does
+     * mean Remnant rings a tone of its own, because at that point it is the first alarm of
+     * the morning rather than a companion to one. The copy offering it has to say so.
+     */
+    const val RECOMMENDED_LEAD_MINUTES = 30L
+
+    /**
      * How far behind the phone's alarm Remnant's check-in has to fall before the gap is
      * worth raising during setup. Inside this the user is still surfacing and the dream is
      * still there; well outside it -- an alarm at 6:00 and a check-in at 7:02 -- the
@@ -64,8 +76,17 @@ object CompanionAlarm {
 
     /**
      * The moment Remnant would check in if it followed the phone's alarm at [nextAlarmMs]
-     * rather than the time the user picked.
+     * rather than the time the user picked. The quiet option: the phone still does the
+     * waking and Remnant asks just afterwards without a tone of its own.
      */
     fun checkInTimeAfter(nextAlarmMs: Long): Long =
         nextAlarmMs + CHECK_IN_DELAY_MINUTES * MS_PER_MINUTE
+
+    /**
+     * The recommended time to be woken, [RECOMMENDED_LEAD_MINUTES] ahead of the phone's own
+     * alarm at [nextAlarmMs]. Remnant is the first alarm of the morning at this point, so it
+     * rings rather than checking in quietly -- see [RECOMMENDED_LEAD_MINUTES].
+     */
+    fun recommendedWakeBefore(nextAlarmMs: Long): Long =
+        nextAlarmMs - RECOMMENDED_LEAD_MINUTES * MS_PER_MINUTE
 }

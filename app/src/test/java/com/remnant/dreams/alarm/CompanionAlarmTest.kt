@@ -98,6 +98,47 @@ class CompanionAlarmTest {
         assertEquals(CompanionAlarm.CHECK_IN_DELAY_MINUTES * 60_000L, checkIn - phoneAlarm)
     }
 
+    // --- the recommended wake time ---
+
+    @Test
+    fun `the recommendation is half an hour before the phone's alarm`() {
+        val phoneAlarm = minutesBeforeOurs(62)
+        val recommended = CompanionAlarm.recommendedWakeBefore(phoneAlarm)
+
+        assertEquals(CompanionAlarm.RECOMMENDED_LEAD_MINUTES * 60_000L, phoneAlarm - recommended)
+    }
+
+    @Test
+    fun `waking on the recommendation makes Remnant the first alarm, not a companion`() {
+        // This is the behaviour the copy has to be honest about: at the recommended time
+        // Remnant rings its own tone, because the phone's alarm is still ahead of it.
+        val phoneAlarm = minutesBeforeOurs(62)
+        val recommended = CompanionAlarm.recommendedWakeBefore(phoneAlarm)
+
+        assertFalse(CompanionAlarm.isCompanion(phoneAlarm, recommended))
+        assertFalse(CompanionAlarm.isCheckInStale(phoneAlarm, recommended))
+    }
+
+    @Test
+    fun `the recommendation never collides with the phone's own alarm`() {
+        // Matching the alarm exactly would read as our own alarm coming back to us and
+        // leave the user with two things going off at once. Half an hour is clear of that.
+        val phoneAlarm = minutesBeforeOurs(62)
+        val recommended = CompanionAlarm.recommendedWakeBefore(phoneAlarm)
+
+        assertTrue(phoneAlarm - recommended > CompanionAlarm.SAME_ALARM_TOLERANCE_MS)
+    }
+
+    @Test
+    fun `the recommendation lands earlier than the quiet alternative`() {
+        val phoneAlarm = minutesBeforeOurs(62)
+
+        assertTrue(
+            CompanionAlarm.recommendedWakeBefore(phoneAlarm) <
+                CompanionAlarm.checkInTimeAfter(phoneAlarm)
+        )
+    }
+
     @Test
     fun `taking the offer stops the gap being worth flagging`() {
         // Accepting the suggestion has to settle the warning, or the hint nags forever.

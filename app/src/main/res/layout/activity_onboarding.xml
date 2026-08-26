@@ -125,7 +125,25 @@
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="6dp"
         tools:visibility="visible"
-        tools:text="Check in at 6:05 AM instead" />
+        tools:text="Wake me at 5:30 AM" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCompanionAfterAlarm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:textSize="13sp"
+        android:textAllCaps="false"
+        android:minHeight="36dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:textColor="@color/text_secondary"
+        app:layout_constraintTop_toBottomOf="@id/btnUseDeviceAlarm"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginTop="2dp"
+        tools:visibility="visible"
+        tools:text="Or ask me quietly at 6:05 AM" />
 
     <TextView
         android:id="@+id/textVoiceHint"
@@ -135,7 +153,7 @@
         android:textSize="12sp"
         android:textColor="@color/text_secondary"
         android:lineSpacingMultiplier="1.3"
-        app:layout_constraintTop_toBottomOf="@id/btnUseDeviceAlarm"
+        app:layout_constraintTop_toBottomOf="@id/btnCompanionAfterAlarm"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="16dp" />

@@ -97,6 +97,10 @@ class OnboardingActivity : AppCompatActivity() {
         }
 
         binding.btnUseDeviceAlarm.setOnClickListener {
+            useRecommendedWakeTime()
+        }
+
+        binding.btnCompanionAfterAlarm.setOnClickListener {
             useDeviceAlarmTime()
         }
 
@@ -204,6 +208,7 @@ class OnboardingActivity : AppCompatActivity() {
         if (deviceAlarmMs == null || !CompanionAlarm.isCheckInStale(deviceAlarmMs, ourAlarmMs)) {
             binding.textAlarmConflict.visibility = View.GONE
             binding.btnUseDeviceAlarm.visibility = View.GONE
+            binding.btnCompanionAfterAlarm.visibility = View.GONE
             return
         }
 
@@ -212,22 +217,37 @@ class OnboardingActivity : AppCompatActivity() {
             formatClock(deviceAlarmMs),
             formatClock(ourAlarmMs)
         )
+        // The recommendation leads, because a dream asked about after the household alarm
+        // has already gone. The quiet companion setup stays available underneath it.
         binding.btnUseDeviceAlarm.text = getString(
+            R.string.onboarding_alarm_wake_before,
+            formatClock(CompanionAlarm.recommendedWakeBefore(deviceAlarmMs))
+        )
+        binding.btnCompanionAfterAlarm.text = getString(
             R.string.onboarding_alarm_use_device,
             formatClock(CompanionAlarm.checkInTimeAfter(deviceAlarmMs))
         )
         binding.textAlarmConflict.visibility = View.VISIBLE
         binding.btnUseDeviceAlarm.visibility = View.VISIBLE
+        binding.btnCompanionAfterAlarm.visibility = View.VISIBLE
     }
 
-    /** Moves the check-in to just after the alarm the phone already has set. */
+    /** Takes the recommendation: wake half an hour before the alarm the phone already has. */
+    private fun useRecommendedWakeTime() {
+        val deviceAlarm = deviceAlarmTimeMs() ?: return
+        applyTime(CompanionAlarm.recommendedWakeBefore(deviceAlarm))
+    }
+
+    /** Takes the quiet option: let the phone wake them, and ask straight afterwards. */
     private fun useDeviceAlarmTime() {
         val deviceAlarm = deviceAlarmTimeMs() ?: return
-        val checkIn = Calendar.getInstance().apply {
-            timeInMillis = CompanionAlarm.checkInTimeAfter(deviceAlarm)
-        }
-        selectedHour = checkIn.get(Calendar.HOUR_OF_DAY)
-        selectedMinute = checkIn.get(Calendar.MINUTE)
+        applyTime(CompanionAlarm.checkInTimeAfter(deviceAlarm))
+    }
+
+    private fun applyTime(timeMs: Long) {
+        val picked = Calendar.getInstance().apply { timeInMillis = timeMs }
+        selectedHour = picked.get(Calendar.HOUR_OF_DAY)
+        selectedMinute = picked.get(Calendar.MINUTE)
         updateTimeDisplay()
     }
 

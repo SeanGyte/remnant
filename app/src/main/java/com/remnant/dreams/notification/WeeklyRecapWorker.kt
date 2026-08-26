@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -68,8 +69,16 @@ class WeeklyRecapWorker(
     }
 
     private fun showNotification(message: String) {
-        if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED) {
+        // POST_NOTIFICATIONS is only a runtime permission from API 33. Checking it on
+        // older versions returns denied and would suppress the recap entirely, so the
+        // check is guarded and areNotificationsEnabled covers every API level.
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        if (!NotificationManagerCompat.from(applicationContext).areNotificationsEnabled()) {
             return
         }
 

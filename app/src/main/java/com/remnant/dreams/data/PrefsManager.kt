@@ -60,6 +60,14 @@ class PrefsManager(context: Context) {
         get() = prefs.getString(KEY_PROMPT_CACHE, "") ?: ""
         set(value) = prefs.edit().putString(KEY_PROMPT_CACHE, value).apply()
 
+    /**
+     * When the fallback alarm started ringing, or 0 when no fallback alarm is outstanding.
+     * Only ever set when notifications are unavailable -- see AlarmRingingState.
+     */
+    var alarmRingingSince: Long
+        get() = prefs.getLong(KEY_ALARM_RINGING_SINCE, 0L)
+        set(value) = prefs.edit().putLong(KEY_ALARM_RINGING_SINCE, value).apply()
+
     /** Whether the next alarm should fire in companion mode (another alarm detected nearby). */
     var companionMode: Boolean
         get() = prefs.getBoolean(KEY_COMPANION_MODE, false)
@@ -88,6 +96,7 @@ class PrefsManager(context: Context) {
         private const val KEY_IS_PRO = "is_pro"
         private const val KEY_VOICE_ID = "voice_id"
         private const val KEY_PROMPT_CACHE = "prompt_cache_key"
+        private const val KEY_ALARM_RINGING_SINCE = "alarm_ringing_since"
         private const val KEY_COMPANION_MODE = "companion_mode"
         private const val KEY_AUDIO_RETENTION = "audio_retention_days"
         private const val KEY_TRANSCRIPT_RETENTION = "transcript_retention_days"

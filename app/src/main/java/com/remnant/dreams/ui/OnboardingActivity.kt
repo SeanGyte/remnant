@@ -209,9 +209,11 @@ class OnboardingActivity : AppCompatActivity() {
     private fun showNotificationsBlockedDialog() {
         showPermissionSettingsDialog(
             title = "Notifications are switched off",
-            message = "The morning alarm arrives as a notification, so with notifications off " +
-                "it won't appear and there'll be nothing to capture. You can turn them on " +
-                "under Notifications in Remnant's app settings.",
+            message = "Your alarm will still sound -- Remnant rings without a notification " +
+                "when it has to. What you won't get is the alarm screen: the ringing stops " +
+                "after a few minutes, and nothing is captured until you open Remnant " +
+                "yourself. Turning notifications on under Notifications in Remnant's app " +
+                "settings gets the full alarm back.",
             dismissLabel = "Continue without",
             onDismiss = { completeOnboarding() }
         )

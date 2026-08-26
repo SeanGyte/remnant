@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Plays the alarm tone when notifications are unavailable (AlarmRingtoneService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -80,6 +82,12 @@
             android:name=".alarm.DreamCaptureService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- Fallback Alarm Ringer (only used when notifications are unavailable) -->
+        <service
+            android:name=".alarm.AlarmRingtoneService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- Alarm Full Screen Activity -->
         <activity

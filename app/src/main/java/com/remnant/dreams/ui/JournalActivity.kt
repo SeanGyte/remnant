@@ -15,6 +15,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.remnant.dreams.R
+import com.remnant.dreams.alarm.AlarmActivity
+import com.remnant.dreams.alarm.AlarmRingingState
 import com.remnant.dreams.alarm.AlarmScheduler
 import com.remnant.dreams.billing.BillingManager
 import com.remnant.dreams.billing.ProGate
@@ -225,6 +227,14 @@ class JournalActivity : AppCompatActivity() {
         // Defensive re-arm: if the alarm chain ever broke (missed broadcast, force stop),
         // opening the app puts it back. No-ops when the alarm is disabled.
         AlarmScheduler.schedule(this)
+
+        // With notifications refused the alarm has no screen to put in front of anyone,
+        // so opening the app is where the capture flow gets picked up.
+        if (AlarmRingingState.shouldRouteToCapture(prefs.alarmRingingSince, System.currentTimeMillis())) {
+            startActivity(Intent(this, AlarmActivity::class.java))
+            return
+        }
+
         updateStats()
         updateModeStatus()
     }

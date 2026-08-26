@@ -105,6 +105,12 @@ These involve your identity, your card, or judgement calls that are yours to mak
      reading "Couldn't catch the words -- tap to play the recording" and 40
      seconds of silence behind it
    - Full alarm -> wake -> capture -> journal flow, plus companion mode
+   - **The alarm audibly fires with notifications denied.** Deny notifications during
+     onboarding (or revoke them afterwards), set an alarm a couple of minutes out,
+     lock the phone, and confirm it rings and vibrates on the alarm stream with no
+     notification showing. Then open Remnant and confirm it drops straight into the
+     alarm/capture screen. This is `AlarmRingtoneService`, the only wake path a user
+     who refused notifications has
    - Edge-to-edge layouts (new in v1.2.0): all screens on an Android 15/16 device --
      nothing under the status bar, nav bar, or camera cutout
    - Search, export, and the upgrade dialog (install a release build, since debug
@@ -154,6 +160,13 @@ These involve your identity, your card, or judgement calls that are yours to mak
    - Content rating questionnaire (expect Everyone), target audience (18+ or 13+ --
      your call; dreams content is personal but not restricted), ads declaration (none)
    - In-app purchases declaration (A$19.99 one-time)
+   - **Foreground service types.** Two are declared: `microphone` (DreamCaptureService,
+     recording the dream) and `mediaPlayback` (AlarmRingtoneService, playing the alarm
+     tone when notifications are unavailable). Both need a short justification in the
+     declaration form. `mediaPlayback` is the honest type -- the service does nothing
+     but play the device alarm sound on the alarm stream -- but if Play pushes back,
+     the alternative is `specialUse` with the subtype `alarm` and a written
+     justification, which is a slower review path
 
 9. **Store listing** (from `docs/STORE_LISTING.md`) + assets: app icon 512x512,
    feature graphic 1024x500, at least 2 phone screenshots (take these during the

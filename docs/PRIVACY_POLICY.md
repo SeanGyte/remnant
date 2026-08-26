@@ -51,7 +51,8 @@ Remnant requests only the permissions necessary to function:
 - **Microphone** -- to record your voice when capturing dreams
 - **Notifications** -- for alarm alerts and weekly recaps
 - **Exact Alarms** -- to schedule your wake-up alarm reliably
-- **Foreground Service** -- to keep the recording session active while capturing
+- **Foreground Service** -- to keep the recording session active while capturing, and to
+  sound the alarm if you have switched notifications off
 - **Boot Completed** -- to reschedule your alarm after device restarts
 
 ## Data Retention

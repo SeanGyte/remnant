@@ -64,6 +64,11 @@ class AlarmActivity : AppCompatActivity() {
         prefs = PrefsManager(this)
         isCompanionMode = prefs.companionMode
 
+        // The alarm screen is up, so the fallback ringer has done its job -- whichever
+        // route got us here, this alarm is no longer outstanding.
+        prefs.alarmRingingSince = 0L
+        AlarmRingtoneService.stop(this)
+
         NotificationManagerCompat.from(this).cancel(AlarmReceiver.ALARM_NOTIFICATION_ID)
 
         registerReceiver(

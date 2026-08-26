@@ -13,6 +13,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.remnant.dreams.R
 import com.remnant.dreams.RemnantApp
+import com.remnant.dreams.data.PrefsManager
 
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -37,7 +38,12 @@ class AlarmReceiver : BroadcastReceiver() {
         )
 
         if (!notificationsAllowed(context)) {
-            Log.w(TAG, "Notifications not permitted -- alarm notification skipped")
+            // No notification means no full-screen intent either -- it rides on one. Ring
+            // through a foreground service instead, and let JournalActivity pick the user
+            // up when they open the app.
+            Log.w(TAG, "Notifications not permitted -- ringing the fallback alarm")
+            PrefsManager(context).alarmRingingSince = System.currentTimeMillis()
+            AlarmRingtoneService.start(context)
             return
         }
 

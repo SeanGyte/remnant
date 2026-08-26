@@ -5,12 +5,12 @@ scheduled work. Newest at the top.
 
 ## Future options
 
-### Notification-independent wake path
+### A visual alarm without notifications (partly done)
 
-Today the alarm reaches the user as a notification, so a user who declines
-POST_NOTIFICATIONS has no alarm at all -- onboarding lets them through, but the app
-cannot do the one thing it exists for. A wake path that does not depend on the
-notification permission (the exact alarm still fires the receiver either way) could
-close that gap. Not current work: the point of the app is waking the user, so the
-realistic answer to "notifications off" is to ask for them, and the fallback is an
-option for someday rather than a feature to design around.
+The sound half is built: `AlarmRingtoneService` rings and vibrates from the exact-alarm
+broadcast when notifications are unavailable, and opening the app inside the capture
+window drops the user into the alarm screen. What is still missing is the screen itself
+at alarm time -- a full-screen intent needs a notification to ride on, so a user with
+notifications off is woken by sound alone and sees nothing until they open Remnant
+themselves. Not current work: the honest answer to "notifications off" is still to ask
+for them, and the fallback exists so that refusing does not silently break the alarm.

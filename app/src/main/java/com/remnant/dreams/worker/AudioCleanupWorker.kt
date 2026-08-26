@@ -25,6 +25,87 @@ internal fun retentionCutoffMillis(nowMillis: Long, retentionDays: Int): Long {
 }
 
 /**
+ * One file sitting in the audio directory, reduced to what the orphan decision needs.
+ */
+internal data class AudioFileSnapshot(
+    val path: String,
+    val lastModifiedMillis: Long
+)
+
+/**
+ * Decides which files in the audio directory are orphans: on disk with no dream row pointing
+ * at them, and old enough that no live capture can still own them.
+ *
+ * Force-stopping the app mid-capture leaves exactly that. MediaRecorder never gets stopped, so
+ * the m4a has no moov atom and will not play, and the audio path is only written to a row on
+ * save, so nothing references the file. Both retention passes walk rows, which makes a file
+ * with no row invisible to them -- it would sit there taking up space forever.
+ *
+ * The decision is kept clear of Android and java.io so it can be tested on the JVM; the worker
+ * does the listing and the deleting.
+ */
+internal object AudioOrphanSweep {
+
+    /**
+     * How old a file has to be before the sweep will touch it.
+     *
+     * This is the whole safety story. A capture in progress has its file on disk and no row
+     * pointing at it yet, so by reference alone it is indistinguishable from an orphan, and
+     * deleting it would destroy the user's dream while they are still speaking it. Capture is
+     * hard-capped at 10 minutes (CapturePolicy.MAX_CAPTURE_MS), so a day is a margin of
+     * over a hundred times the longest recording that can exist. That size also absorbs the
+     * smaller races -- a save whose row write is still queued, a compression pass part-way
+     * through -- and any plausible disagreement between a file's last-modified stamp and the
+     * worker's clock after a time sync. Waiting costs nothing: this worker runs daily, and the
+     * file it is waiting on is dead weight nobody can play.
+     */
+    const val MIN_ORPHAN_AGE_MS = 24L * 60 * 60 * 1000
+
+    /**
+     * Recordings are the only thing the sweep may remove.
+     *
+     * AudioCompressionWorker parks the original as `<name>.m4a.bak` while it swaps a compressed
+     * copy into place, and until that swap completes or a later pass restores it, the backup is
+     * the only surviving copy of the recording -- with no row pointing at it. Restricting the
+     * sweep to `.m4a` keeps those backups out of reach.
+     */
+    private const val AUDIO_EXTENSION = ".m4a"
+
+    /**
+     * The subset of [files] safe to delete: not referenced by any of [referencedPaths], and last
+     * written at least [MIN_ORPHAN_AGE_MS] before [nowMillis].
+     */
+    fun selectOrphans(
+        files: List<AudioFileSnapshot>,
+        referencedPaths: Collection<String>,
+        nowMillis: Long
+    ): List<AudioFileSnapshot> {
+        val paths = referencedPaths.toHashSet()
+
+        // A row and a directory listing ought to produce identical absolute paths, but they are
+        // written at different moments by different code, and filesDir has been seen reporting
+        // both /data/user/0/<pkg> and /data/data/<pkg> for the same directory. Counting a bare
+        // name match as "referenced" too makes the comparison survive that. Every recording
+        // lives in this one directory under a name stamped to the second, so the worst a false
+        // match can do is leave an orphan another day, where a false miss deletes a recording
+        // the user still has.
+        val names = paths.mapTo(HashSet(paths.size)) { fileNameOf(it) }
+
+        return files.filter { file ->
+            val name = fileNameOf(file.path)
+            name.endsWith(AUDIO_EXTENSION, ignoreCase = true) &&
+                    file.path !in paths &&
+                    name !in names &&
+                    nowMillis - file.lastModifiedMillis >= MIN_ORPHAN_AGE_MS
+        }
+    }
+
+    /** Last path segment, taking either separator so the decision behaves the same off-device. */
+    internal fun fileNameOf(path: String): String =
+        path.substringAfterLast('/').substringAfterLast('\\')
+}
+
+/**
  * Daily worker that enforces the two retention settings, which are independent of
  * each other and both run on every pass:
  *
@@ -35,6 +116,11 @@ internal fun retentionCutoffMillis(nowMillis: Long, retentionDays: Int): Long {
  *   any audio files they still own first so nothing is orphaned on disk.
  *
  * Either setting can be 0, meaning "keep forever".
+ *
+ * A third pass then sweeps the audio directory itself. Retention only ever looks at rows, so
+ * a file that never got a row -- the app force-stopped mid-capture, a failed delete leaving
+ * the file behind after its entry went -- is invisible to both settings and leaks. See
+ * [AudioOrphanSweep] for what makes that safe to do while a capture may be running.
  */
 class AudioCleanupWorker(
     context: Context,
@@ -43,6 +129,9 @@ class AudioCleanupWorker(
 
     companion object {
         private const val TAG = "AudioCleanupWorker"
+
+        /** Mirrors the directory DreamCaptureService records into. */
+        private const val AUDIO_DIR_NAME = "audio"
     }
 
     override suspend fun doWork(): Result {
@@ -52,6 +141,15 @@ class AudioCleanupWorker(
 
         cleanUpExpiredAudio(dao, prefs.audioRetentionDays, now)
         deleteExpiredEntries(dao, prefs.transcriptRetentionDays, now)
+
+        // Last, so anything the retention passes have just unhooked from its row is already
+        // visible to the sweep. Guarded because an unreadable directory is a poor reason to
+        // fail a run whose retention work has already gone through.
+        try {
+            sweepOrphanedAudio(dao, now)
+        } catch (e: Exception) {
+            Log.e(TAG, "Orphan sweep failed", e)
+        }
 
         return Result.success()
     }
@@ -130,5 +228,49 @@ class AudioCleanupWorker(
             "Transcript retention $retentionDays days: deleted $removed entries " +
                     "and $audioDeleted audio files"
         )
+    }
+
+    /**
+     * Removes audio files that no dream row references, once they are old enough to be safe.
+     *
+     * This deliberately ignores both retention settings. "Keep forever" is the user asking us
+     * to hold on to their dreams; an orphan is not a dream -- there is no entry, nothing in
+     * the journal points at it, and nothing in the app can play it.
+     */
+    private suspend fun sweepOrphanedAudio(dao: DreamDao, now: Long) {
+        val audioDir = File(applicationContext.filesDir, AUDIO_DIR_NAME)
+
+        // listFiles() is null when the directory does not exist yet or cannot be read. Neither
+        // is a problem -- there is simply nothing to sweep.
+        val onDisk = audioDir.listFiles()
+        if (onDisk == null || onDisk.isEmpty()) {
+            Log.d(TAG, "No audio directory to sweep")
+            return
+        }
+
+        val snapshots = onDisk
+            .filter { it.isFile }
+            .map { AudioFileSnapshot(it.absolutePath, it.lastModified()) }
+
+        val orphans = AudioOrphanSweep.selectOrphans(snapshots, dao.getAllAudioPaths(), now)
+        if (orphans.isEmpty()) {
+            Log.d(TAG, "No orphaned audio files to sweep")
+            return
+        }
+
+        var deleted = 0
+        var freedBytes = 0L
+        for (orphan in orphans) {
+            val file = File(orphan.path)
+            val size = file.length()
+            if (file.delete()) {
+                deleted++
+                freedBytes += size
+            } else {
+                Log.w(TAG, "Couldn't delete orphaned audio file: ${file.name}")
+            }
+        }
+
+        Log.d(TAG, "Swept $deleted orphaned audio files, freeing $freedBytes bytes")
     }
 }

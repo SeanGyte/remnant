@@ -49,6 +49,10 @@ interface DreamDao {
     @Query("SELECT * FROM dreams WHERE audioPath IS NOT NULL AND timestamp < :olderThan")
     suspend fun getEntriesWithAudioOlderThan(olderThan: Long): List<DreamEntry>
 
+    /** Every recording the journal still lays claim to, for deciding what on disk is an orphan. */
+    @Query("SELECT audioPath FROM dreams WHERE audioPath IS NOT NULL")
+    suspend fun getAllAudioPaths(): List<String>
+
     @Query("UPDATE dreams SET audioPath = NULL, transcription = :newTranscription WHERE id = :id")
     suspend fun clearAudioAndUpdateTranscription(id: Long, newTranscription: String)
 

@@ -13,6 +13,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.widget.doAfterTextChanged
 import com.remnant.dreams.AppScope
 import com.remnant.dreams.R
 import com.remnant.dreams.alarm.AlarmScheduler
@@ -83,10 +86,20 @@ class OnboardingActivity : AppCompatActivity() {
             showVoicePicker()
         }
 
+        // Take the error down the moment they start supplying what it asked for.
+        binding.editName.doAfterTextChanged { binding.layoutName.error = null }
+
         binding.btnStart.setOnClickListener {
             val name = binding.editName.text.toString().trim()
             if (name.isEmpty()) {
-                binding.editName.error = "What should we call you?"
+                // The error belongs on the TextInputLayout, not the edit text nested in it:
+                // a TextView error is a popup Android only raises while the field has
+                // focus, and on a fresh install nothing is focused, so Start looked like a
+                // dead button. The layout draws its error under the field either way.
+                binding.layoutName.error = getString(R.string.onboarding_name_required)
+                binding.editName.requestFocus()
+                WindowCompat.getInsetsController(window, binding.editName)
+                    .show(WindowInsetsCompat.Type.ime())
                 return@setOnClickListener
             }
 

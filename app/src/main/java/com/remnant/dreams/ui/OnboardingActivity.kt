@@ -10,9 +10,10 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
+import com.remnant.dreams.AppScope
 import com.remnant.dreams.alarm.AlarmScheduler
 import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.databinding.ActivityOnboardingBinding
@@ -32,11 +33,27 @@ class OnboardingActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val allGranted = permissions.all { it.value }
-        if (allGranted) {
-            completeOnboarding()
-        } else {
-            Toast.makeText(this, "Microphone permission is required to capture dreams", Toast.LENGTH_LONG).show()
+        // A permission we already held isn't in the result map, so fall back to a live check
+        // rather than assuming -- a cancelled prompt returns an empty map.
+        val micGranted = permissions[Manifest.permission.RECORD_AUDIO] ?: isGranted(Manifest.permission.RECORD_AUDIO)
+        val notificationsDenied = permissions[Manifest.permission.POST_NOTIFICATIONS] == false
+
+        when {
+            // Notifications don't block onboarding, but the alarm is delivered as one, so say
+            // so before moving on. The microphone dialog wins if both were denied.
+            micGranted && notificationsDenied -> showNotificationsBlockedDialog()
+            // Only the microphone is required -- without it there is nothing to record.
+            micGranted -> completeOnboarding()
+            // Android still shows the prompt, so tapping Start again is worth doing.
+            shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) -> {
+                Toast.makeText(
+                    this,
+                    "Remnant needs the microphone to record your dream. Tap Start to allow it.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            // Android has stopped asking -- the only way back is the app's settings page.
+            else -> showMicrophoneBlockedDialog()
         }
     }
 
@@ -71,6 +88,7 @@ class OnboardingActivity : AppCompatActivity() {
             prefs.userName = name
             prefs.alarmHour = selectedHour
             prefs.alarmMinute = selectedMinute
+            prefs.cloudVoiceOptIn = binding.checkCloudVoice.isChecked
 
             requestPermissions()
         }
@@ -102,14 +120,83 @@ class OnboardingActivity : AppCompatActivity() {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        val needsPermission = permissions.any {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
+        val needsPermission = permissions.any { !isGranted(it) }
 
         if (needsPermission) {
             permissionLauncher.launch(permissions.toTypedArray())
         } else {
             completeOnboarding()
+        }
+    }
+
+    private fun isGranted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Explains a permission the user has switched off and offers the app's settings page --
+     * the only route back once Android has stopped prompting. [onDismiss] runs however the
+     * dialog is closed: button, back press or a tap outside.
+     */
+    private fun showPermissionSettingsDialog(
+        title: String,
+        message: String,
+        dismissLabel: String,
+        onDismiss: () -> Unit = {}
+    ) {
+        var openSettings = false
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("Open app settings") { _, _ -> openSettings = true }
+            .setNegativeButton(dismissLabel, null)
+            .setOnDismissListener {
+                // Carry on first, then open settings, so the settings page lands on top of
+                // anything [onDismiss] started rather than buried under it.
+                onDismiss()
+                if (openSettings) openAppSettings()
+            }
+            .show()
+    }
+
+    /** Shown when Android has stopped prompting for the microphone (denied twice). */
+    private fun showMicrophoneBlockedDialog() {
+        showPermissionSettingsDialog(
+            title = "Microphone is switched off",
+            message = "Remnant records what you say when you wake up, so it can't capture " +
+                "anything without the microphone. Your phone won't ask again -- you can turn " +
+                "it on under Permissions in Remnant's app settings.",
+            dismissLabel = "Not now"
+        )
+    }
+
+    /**
+     * Shown when the microphone is granted but notifications aren't. Onboarding finishes
+     * either way -- however this dialog is closed, we carry on into the app.
+     */
+    private fun showNotificationsBlockedDialog() {
+        showPermissionSettingsDialog(
+            title = "Notifications are switched off",
+            message = "The morning alarm arrives as a notification, so with notifications off " +
+                "it won't appear and there'll be nothing to capture. You can turn them on " +
+                "under Notifications in Remnant's app settings.",
+            dismissLabel = "Continue without",
+            onDismiss = { completeOnboarding() }
+        )
+    }
+
+    private fun openAppSettings() {
+        try {
+            val intent = Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", packageName, null)
+            )
+            startActivity(intent)
+        } catch (_: Exception) {
+            Toast.makeText(
+                this,
+                "Couldn't open your app settings. You can change Remnant's permissions from your phone's Settings app.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -148,6 +235,10 @@ class OnboardingActivity : AppCompatActivity() {
     }
 
     private fun cacheVoicePrompt() {
+        // The Cloud voice sends the user's name to Google, so it only runs if they asked for it.
+        // With no cached prompt the alarm reads the greeting with the on-device voice instead.
+        if (!prefs.cloudVoiceOptIn) return
+
         val apiKey = ApiKeys.GOOGLE_CLOUD_TTS
         if (apiKey.isEmpty()) return
 
@@ -158,8 +249,12 @@ class OnboardingActivity : AppCompatActivity() {
 
         if (prefs.promptCacheKey == cacheKey) return // Already cached
 
-        lifecycleScope.launch {
-            val ttsGen = CloudTtsGenerator(this@OnboardingActivity)
+        // Application-scoped on purpose: this screen finishes moments later, and a
+        // lifecycleScope job would be cancelled part-way through caching. The application
+        // context keeps the finished activity out of the coroutine.
+        val appContext = applicationContext
+        AppScope.io.launch {
+            val ttsGen = CloudTtsGenerator(appContext)
 
             // Cache dream prompt
             val dreamText = "Good morning $name. What did you dream about last night?"

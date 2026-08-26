@@ -7,6 +7,7 @@
     <string name="onboarding_explainer">Set your alarm. When you wake up, just talk. Remnant captures your dreams before they slip away.</string>
     <string name="onboarding_name_hint">What should we call you?</string>
     <string name="onboarding_alarm_label">When do you wake up?</string>
+    <string name="onboarding_cloud_voice">Use a natural-sounding morning voice. This sends your first name (nothing else) to Google\'s text-to-speech service to make the greeting. Leave it off and your phone\'s own voice reads it.</string>
     <string name="onboarding_start">Start Capturing Dreams</string>
 
     <!-- Alarm -->

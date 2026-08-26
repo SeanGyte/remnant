@@ -188,6 +188,9 @@ class SettingsActivity : AppCompatActivity() {
         val dialog = VoicePreviewDialogFragment()
         dialog.onVoiceSelected = { voice ->
             prefs.selectedVoiceId = voice.id
+            // Picking a voice here is the same explicit consent the onboarding checkbox
+            // records, so the flag stays an accurate answer to "did the user opt in".
+            prefs.cloudVoiceOptIn = true
             updateVoiceDisplay()
             regeneratePrompt()
         }

@@ -5,7 +5,13 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [DreamEntry::class], version = 2, exportSchema = true)
+/**
+ * The Room schema version, pinned by `DreamDatabaseVersionTest` so a bump cannot ship
+ * unmigrated. Read that test before changing this number -- it spells out the procedure.
+ */
+const val DREAM_DB_VERSION = 2
+
+@Database(entities = [DreamEntry::class], version = DREAM_DB_VERSION, exportSchema = true)
 abstract class DreamDatabase : RoomDatabase() {
 
     abstract fun dreamDao(): DreamDao

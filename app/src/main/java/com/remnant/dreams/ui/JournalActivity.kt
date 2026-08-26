@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.remnant.dreams.R
+import com.remnant.dreams.alarm.AlarmScheduler
 import com.remnant.dreams.billing.BillingManager
 import com.remnant.dreams.billing.ProGate
 import com.remnant.dreams.data.DreamDatabase
@@ -219,6 +220,9 @@ class JournalActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Defensive re-arm: if the alarm chain ever broke (missed broadcast, force stop),
+        // opening the app puts it back. No-ops when the alarm is disabled.
+        AlarmScheduler.schedule(this)
         updateStats()
         updateModeStatus()
     }

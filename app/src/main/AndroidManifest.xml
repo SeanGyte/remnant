@@ -65,6 +65,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- Time / Timezone Change Receiver -->
+        <receiver
+            android:name=".alarm.TimeChangeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Dream Capture Service -->
         <service
             android:name=".alarm.DreamCaptureService"

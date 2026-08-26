@@ -14,6 +14,13 @@ object AlarmScheduler {
     private const val TAG = "AlarmScheduler"
     private const val REQUEST_CODE = 1001
 
+    /**
+     * Guard band for "already passed today". AlarmReceiver reschedules at the exact
+     * moment the alarm fires, so today's slot is equal to (or a hair before) now --
+     * without the tolerance we would re-arm for right now and fire in a loop.
+     */
+    private const val PAST_TOLERANCE_MS = 1000L
+
     fun schedule(context: Context) {
         val prefs = PrefsManager(context)
         if (!prefs.alarmEnabled) return
@@ -23,6 +30,9 @@ object AlarmScheduler {
         // Check permission on Android 12+
         if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {
             Log.w(TAG, "Cannot schedule exact alarms -- permission not granted")
+            // DEFERRED: no re-arm UX yet. If the user revokes and later restores the
+            // exact-alarm permission, nothing prompts them and the alarm stays dead
+            // while the UI still says it's set. Needs a settings prompt / re-arm flow.
             return
         }
 
@@ -32,12 +42,13 @@ object AlarmScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val nowMs = System.currentTimeMillis()
         val calendar = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, prefs.alarmHour)
             set(Calendar.MINUTE, prefs.alarmMinute)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
-            if (before(Calendar.getInstance())) {
+            if (timeInMillis <= nowMs + PAST_TOLERANCE_MS) {
                 add(Calendar.DAY_OF_YEAR, 1)
             }
         }

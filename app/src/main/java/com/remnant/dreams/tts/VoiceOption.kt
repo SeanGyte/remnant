@@ -1,5 +1,7 @@
 package com.remnant.dreams.tts
 
+import kotlin.random.Random
+
 data class VoiceOption(
     val id: String,
     val friendlyName: String,
@@ -21,14 +23,40 @@ data class VoiceOption(
             VoiceOption("en-US-Chirp3-HD-Kore", "Quinn", "The Upbeat", "en-US", "Female"),
         )
 
+        /** Stored in place of a voice id when the user has chosen the phone's own voice. */
+        const val DEVICE_VOICE_ID = "device"
+
+        private const val ID_HARPER = "en-US-Chirp3-HD-Aoede"
+        private const val ID_QUINN = "en-US-Chirp3-HD-Kore"
+
         /**
-         * The Cloud voice the user has selected, or null if they have not selected one.
+         * The voices a fresh install can be assigned. Which of the two a given install
+         * gets is a coin flip, so two people on the same build can end up with different
+         * companions.
+         */
+        val ASSIGNABLE_DEFAULTS = ALL.filter { it.id == ID_HARPER || it.id == ID_QUINN }
+
+        /**
+         * The Cloud voice currently in use, or null for the phone's own voice.
          *
-         * Selecting a voice IS the consent to use Google's text-to-speech service, so there
-         * is deliberately no default: an empty [voiceId] -- or one this build no longer
-         * offers -- means the phone's own voice and no network call.
+         * Null is the only state in which Remnant makes no text-to-speech request:
+         * [DEVICE_VOICE_ID], an id this build no longer offers, and an install that
+         * somehow never got assigned all land here, which is the safe way to be wrong.
          */
         fun selectedOrNull(voiceId: String): VoiceOption? =
             if (voiceId.isEmpty()) null else ALL.find { it.id == voiceId }
+
+        /** The coin flip. Seedable so the outcomes can be tested. */
+        fun assignDefault(random: Random = Random.Default): VoiceOption =
+            ASSIGNABLE_DEFAULTS[random.nextInt(ASSIGNABLE_DEFAULTS.size)]
+
+        /**
+         * The voice id a fresh install should be given, or null if this install already
+         * has one. Assignment happens once, while the stored id is empty, so it never
+         * re-rolls -- and a user who switched to the phone's own voice is never quietly
+         * handed a Cloud voice back on the next launch.
+         */
+        fun assignIfUnset(storedVoiceId: String, random: Random = Random.Default): String? =
+            if (storedVoiceId.isEmpty()) assignDefault(random).id else null
     }
 }

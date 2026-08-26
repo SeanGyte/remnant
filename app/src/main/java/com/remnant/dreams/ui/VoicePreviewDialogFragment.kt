@@ -24,13 +24,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
 
-/** Row identity in the picker list: the phone's own voice is the empty id. */
-private fun VoiceOption?.idOrEmpty(): String = this?.id ?: ""
+/** Row identity in the picker list. */
+private fun VoiceOption?.rowId(): String = this?.id ?: VoiceOption.DEVICE_VOICE_ID
 
 /**
- * Full-screen dialog for previewing and selecting a TTS voice. This picker is where the
- * user consents to Cloud text-to-speech: selecting a Cloud voice is the consent, and the
- * disclosure sits above the list so the choice is made knowing what it sends.
+ * Full-screen dialog for previewing and changing the morning voice. A Cloud voice is
+ * assigned on first run, so this is where the user hears the alternatives and, if they
+ * would rather nothing left the device, switches to the phone's own voice. The disclosure
+ * sits above the list, where the Cloud voices are.
  * Previews are cached separately from the actual prompt audio.
  */
 class VoicePreviewDialogFragment : DialogFragment() {
@@ -68,16 +69,17 @@ class VoicePreviewDialogFragment : DialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         prefs = PrefsManager(requireContext())
-        // No default: an empty id means the phone's own voice, which is the first row.
-        selectedVoiceId = prefs.selectedVoiceId
+        // Every install has a voice by now (assigned on first run), but an empty id would
+        // mean no Cloud voice, which is the phone's own voice row.
+        selectedVoiceId = prefs.selectedVoiceId.ifEmpty { VoiceOption.DEVICE_VOICE_ID }
 
         val recycler = view.findViewById<RecyclerView>(R.id.recyclerVoices)
         val btnCancel = view.findViewById<MaterialButton>(R.id.btnCancel)
         val btnConfirm = view.findViewById<MaterialButton>(R.id.btnConfirm)
 
         adapter = VoiceAdapter(
-            // The null row is the phone's own voice -- the way to choose no Cloud voice,
-            // and the way back out of one.
+            // The null row is the phone's own voice -- the way out of the Cloud voices
+            // the app assigns and offers.
             voices = listOf<VoiceOption?>(null) + VoiceOption.ALL,
             selectedId = selectedVoiceId,
             onPreviewClick = ::onPreviewClicked,
@@ -96,7 +98,7 @@ class VoicePreviewDialogFragment : DialogFragment() {
     }
 
     private fun onRowClicked(voice: VoiceOption?) {
-        selectedVoiceId = voice?.id ?: ""
+        selectedVoiceId = voice.rowId()
         adapter?.updateSelectedId(selectedVoiceId)
     }
 
@@ -227,9 +229,9 @@ class VoicePreviewDialogFragment : DialogFragment() {
         private val rowStates = MutableList(voices.size) { RowState.IDLE }
 
         fun updateSelectedId(id: String) {
-            val oldIndex = voices.indexOfFirst { it.idOrEmpty() == selectedId }
+            val oldIndex = voices.indexOfFirst { it.rowId() == selectedId }
             selectedId = id
-            val newIndex = voices.indexOfFirst { it.idOrEmpty() == id }
+            val newIndex = voices.indexOfFirst { it.rowId() == id }
             if (oldIndex >= 0) notifyItemChanged(oldIndex, "selection")
             if (newIndex >= 0) notifyItemChanged(newIndex, "selection")
         }
@@ -294,12 +296,12 @@ class VoicePreviewDialogFragment : DialogFragment() {
                 }
                 voiceRow.setOnClickListener {
                     onRowClick(voice)
-                    updateSelectedId(voice.idOrEmpty())
+                    updateSelectedId(voice.rowId())
                 }
             }
 
             fun updateState(voice: VoiceOption?, position: Int) {
-                val isSelected = voice.idOrEmpty() == selectedId
+                val isSelected = voice.rowId() == selectedId
                 dotSelected.visibility = if (isSelected) View.VISIBLE else View.INVISIBLE
 
                 // Nothing to fetch for the phone's own voice, so it has no preview button.

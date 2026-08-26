@@ -4,7 +4,9 @@
 
 ## Summary
 
-Remnant is designed with privacy at its core. Your dreams are deeply personal -- we treat them that way. Your voice recordings and transcriptions are stored on your device, and Remnant does not collect, store, or transmit your dream data. The one thing that can leave your device without you choosing it is the audio handed to Android's speech recogniser for transcription, and only on devices without an offline language pack -- see Speech Recognition below.
+Remnant is designed with privacy at its core. Your dreams are deeply personal -- we treat them that way. Your voice recordings and transcriptions are stored on your device, and Remnant does not collect, store, or transmit your dream data.
+
+Two things can leave your device without you having chosen it, and both are described in full below. First, your morning greeting is spoken by a cloud voice that is set up for you when you install the app, which means your first name and the greeting text are sent to Google's text-to-speech service unless you switch to your phone's own voice. Second, the audio handed to Android's speech recogniser for transcription may be processed by Google on devices without an offline language pack.
 
 ## What Data Stays on Your Device
 
@@ -17,15 +19,15 @@ All of this data is stored locally on your Android device. Remnant does not uplo
 
 ## What Data Leaves Your Device
 
-### Voice Prompt Generation (only if you select a Cloud voice)
+### Voice Prompt Generation (a cloud voice is the default)
 
-Your morning prompt is spoken by your phone's built-in voice unless you select one of the Cloud voices. Nothing is sent to any server while your phone's own voice is selected, which is how the app starts and stays until you change it.
+Remnant greets you in the morning with a companion voice, and one of the cloud voices is set up for you when you install the app. This is on by default: you do not have to switch it on, and unless you change it, Remnant sends a short text string to Google Cloud Text-to-Speech to generate that audio.
 
-Selecting a Cloud voice is the choice: no voice is selected for you, and the picker -- in setup or in Settings -- tells you what a Cloud voice sends before you pick one. Until you select one, the app makes no text-to-speech network call at all.
+That string is everything that is sent: your first name and a fixed greeting, for example "Good morning Sean, what did you dream about last night?" No dream content, recordings, or transcriptions are ever sent.
 
-If you select one, a short text string (e.g. "Good morning Sean, what did you dream about last night?") is sent to Google Cloud Text-to-Speech to generate the audio. That string is everything that is sent: your first name and a fixed prompt. No dream content, recordings, or transcriptions are sent.
+You can change it. The voice step during setup, and Settings > Wake-up voice at any time, let you preview the other cloud voices or switch to **your phone's own voice**. With your phone's own voice selected, Remnant makes no text-to-speech request at all, and any cloud audio it had cached is deleted.
 
-The generated audio is cached on your device so this request only happens when you change your name or voice selection. Choosing your phone's own voice again in the picker deletes that cached audio and stops the requests.
+The generated audio is cached on your device, so the request only happens when you change your name or your voice.
 
 ### Speech Recognition
 

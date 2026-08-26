@@ -102,9 +102,9 @@ class OnboardingActivity : AppCompatActivity() {
     }
 
     /**
-     * Opens the voice picker. Selecting a Cloud voice there is the consent to use it --
-     * there is nothing else to tick. Leave the phone's own voice selected and Remnant
-     * never calls Google's text-to-speech service.
+     * Opens the voice picker. The install already has an assigned Cloud voice, so skipping
+     * this step keeps it; the picker is where the user hears the others or switches to the
+     * phone's own voice, which is the only setting under which Remnant sends nothing.
      */
     private fun showVoicePicker() {
         // Previews greet the user by name, but the name is only saved on Start, so carry
@@ -114,7 +114,7 @@ class OnboardingActivity : AppCompatActivity() {
 
         val dialog = VoicePreviewDialogFragment()
         dialog.onVoiceSelected = { voice ->
-            prefs.selectedVoiceId = voice?.id ?: ""
+            prefs.selectedVoiceId = voice?.id ?: VoiceOption.DEVICE_VOICE_ID
             updateVoiceDisplay()
         }
         dialog.show(supportFragmentManager, VoicePreviewDialogFragment.FRAGMENT_TAG)

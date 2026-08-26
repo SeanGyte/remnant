@@ -189,14 +189,13 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /**
-     * Opens the voice picker, which is where consent to Cloud text-to-speech is given and
-     * taken back: selecting a Cloud voice is the consent, and choosing the phone's own
-     * voice withdraws it, cached audio and all.
+     * Opens the voice picker. Choosing the phone's own voice takes the Cloud voice out of
+     * play entirely, cached audio and all, so nothing is sent from then on.
      */
     private fun showVoicePicker() {
         val dialog = VoicePreviewDialogFragment()
         dialog.onVoiceSelected = { voice ->
-            prefs.selectedVoiceId = voice?.id ?: ""
+            prefs.selectedVoiceId = voice?.id ?: VoiceOption.DEVICE_VOICE_ID
             updateVoiceDisplay()
             if (voice != null) {
                 regeneratePrompt(voice)

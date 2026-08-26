@@ -7,13 +7,13 @@
     <string name="onboarding_explainer">Set your alarm. When you wake up, just talk. Remnant captures your dreams before they slip away.</string>
     <string name="onboarding_name_hint">What should we call you?</string>
     <string name="onboarding_alarm_label">When do you wake up?</string>
-    <string name="onboarding_voice_hint">Morning voice (optional). Cloud voices send your first name to Google to make the greeting.</string>
+    <string name="onboarding_voice_hint">Your morning voice is made by Google\'s text-to-speech service: your first name and the greeting are sent to Google to generate it. Tap to hear the others, or pick your phone\'s own voice to keep it on your device.</string>
     <string name="onboarding_start">Start Capturing Dreams</string>
 
     <!-- Voice picker -->
     <string name="voice_device_name">Your phone\'s own voice</string>
     <string name="voice_device_detail">Remnant sends nothing to make it</string>
-    <string name="voice_cloud_disclosure">Cloud voices are made by Google\'s text-to-speech service. Selecting one sends your first name and the greeting text to Google to generate the audio -- nothing else, and no dream content ever. Stay on your phone\'s own voice and Remnant makes no text-to-speech request at all.</string>
+    <string name="voice_cloud_disclosure">Cloud voices are made by Google\'s text-to-speech service, and one is set up for you. Using one sends your first name and the greeting text to Google to generate the audio -- nothing else, and no dream content ever. Choose your phone\'s own voice and Remnant makes no text-to-speech request at all.</string>
 
     <!-- Alarm -->
     <string name="alarm_waking">Good morning</string>

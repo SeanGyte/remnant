@@ -8,7 +8,9 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.remnant.dreams.billing.BillingManager
 import com.remnant.dreams.data.DreamDatabase
+import com.remnant.dreams.data.PrefsManager
 import com.remnant.dreams.notification.WeeklyRecapWorker
+import com.remnant.dreams.tts.VoiceOption
 import com.remnant.dreams.worker.AudioCleanupWorker
 import com.remnant.dreams.worker.AudioCompressionWorker
 import java.util.Calendar
@@ -20,10 +22,22 @@ class RemnantApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        assignCompanionVoice()
         createNotificationChannels()
         scheduleWeeklyRecap()
         scheduleDailyAudioMaintenance()
         restoreProEntitlement()
+    }
+
+    /**
+     * Gives a fresh install its companion voice: a coin flip between the two assignable
+     * voices, stored the first time and never re-rolled. Runs before any screen so
+     * onboarding opens with a voice already chosen for the user, which they can change or
+     * swap for the phone's own voice on the voice step.
+     */
+    private fun assignCompanionVoice() {
+        val prefs = PrefsManager(this)
+        VoiceOption.assignIfUnset(prefs.selectedVoiceId)?.let { prefs.selectedVoiceId = it }
     }
 
     private fun createNotificationChannels() {

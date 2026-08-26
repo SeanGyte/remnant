@@ -154,9 +154,13 @@ These involve your identity, your card, or judgement calls that are yours to mak
 
 8. **Complete the store presence forms** (Policy > App content):
    - Privacy policy URL: https://seangyte.github.io/remnant/
-   - Data safety: no data collected/shared EXCEPT declare the optional Google
-     Cloud TTS call (first name in prompt text) exactly as the privacy policy does.
-     Microphone audio is processed on-device and not collected.
+   - **Data safety: the Google Cloud TTS call is default-on and must be declared as
+     such.** A cloud voice is assigned on install, so the user's first name and the
+     greeting text go to Google unless they switch to the phone's own voice. Declare
+     it as data sent off-device by default (name, in prompt text), not as optional --
+     the privacy policy states it plainly and the form must match. Everything else:
+     no data collected/shared; microphone audio is processed on-device and not
+     collected.
    - Content rating questionnaire (expect Everyone), target audience (18+ or 13+ --
      your call; dreams content is personal but not restricted), ads declaration (none)
    - In-app purchases declaration (A$19.99 one-time)

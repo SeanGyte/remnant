@@ -1,193 +1,217 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<!--
+    The setup steps scroll; Start does not. On a short screen the voice hint and voice
+    button used to fall off the bottom with no way to reach them, which left the app
+    impossible to set up at all. Everything above Start now lives in the ScrollView,
+    and Start sits outside it so it is on screen at every size and stays above the
+    keyboard while the name is being typed.
+-->
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_gradient_dark"
-    android:padding="32dp">
+    android:orientation="vertical"
+    android:background="@drawable/bg_gradient_dark">
 
-    <TextView
-        android:id="@+id/textTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/app_name"
-        android:textSize="36sp"
-        android:textColor="@color/white"
-        android:textStyle="bold"
-        android:fontFamily="sans-serif-light"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="48dp" />
+    <ScrollView
+        android:id="@+id/scrollContent"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
 
-    <TextView
-        android:id="@+id/textTagline"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/onboarding_tagline"
-        android:textSize="16sp"
-        android:textColor="@color/text_secondary"
-        app:layout_constraintTop_toBottomOf="@id/textTitle"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="8dp" />
-
-    <TextView
-        android:id="@+id/textExplainer"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="@string/onboarding_explainer"
-        android:textSize="15sp"
-        android:textColor="@color/text_primary"
-        android:lineSpacingMultiplier="1.4"
-        app:layout_constraintTop_toBottomOf="@id/textTagline"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="20dp" />
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/layoutName"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:hint="@string/onboarding_name_hint"
-        app:layout_constraintTop_toBottomOf="@id/textExplainer"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="24dp"
-        app:boxStrokeColor="@color/accent"
-        app:hintTextColor="@color/accent"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/editName"
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/white"
-            android:inputType="textPersonName"
-            android:imeOptions="actionDone" />
+            android:paddingStart="32dp"
+            android:paddingEnd="32dp"
+            android:paddingTop="32dp"
+            android:paddingBottom="16dp">
 
-    </com.google.android.material.textfield.TextInputLayout>
+            <TextView
+                android:id="@+id/textTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textSize="36sp"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-light"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                android:layout_marginTop="48dp" />
 
-    <TextView
-        android:id="@+id/textAlarmLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/onboarding_alarm_label"
-        android:textSize="16sp"
-        android:textColor="@color/text_secondary"
-        app:layout_constraintTop_toBottomOf="@id/layoutName"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="24dp" />
+            <TextView
+                android:id="@+id/textTagline"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/onboarding_tagline"
+                android:textSize="16sp"
+                android:textColor="@color/text_secondary"
+                app:layout_constraintTop_toBottomOf="@id/textTitle"
+                app:layout_constraintStart_toStartOf="parent"
+                android:layout_marginTop="8dp" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnSetTime"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="7:00 AM"
-        android:textSize="24sp"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:textColor="@color/white"
-        app:strokeColor="@color/accent"
-        app:layout_constraintTop_toBottomOf="@id/textAlarmLabel"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="8dp" />
+            <TextView
+                android:id="@+id/textExplainer"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@string/onboarding_explainer"
+                android:textSize="15sp"
+                android:textColor="@color/text_primary"
+                android:lineSpacingMultiplier="1.4"
+                app:layout_constraintTop_toBottomOf="@id/textTagline"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="20dp" />
 
-    <!-- Both shown together, and only when the phone already has an earlier alarm set. -->
-    <TextView
-        android:id="@+id/textAlarmConflict"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        android:textSize="12sp"
-        android:textColor="@color/text_secondary"
-        android:lineSpacingMultiplier="1.3"
-        app:layout_constraintTop_toBottomOf="@id/btnSetTime"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="12dp"
-        tools:visibility="visible"
-        tools:text="Your phone already rings at 6:00 AM." />
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/layoutName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:hint="@string/onboarding_name_hint"
+                app:layout_constraintTop_toBottomOf="@id/textExplainer"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="24dp"
+                app:boxStrokeColor="@color/accent"
+                app:hintTextColor="@color/accent"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnUseDeviceAlarm"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        android:textSize="14sp"
-        android:textAllCaps="false"
-        android:minHeight="40dp"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:textColor="@color/white"
-        app:strokeColor="@color/accent"
-        app:layout_constraintTop_toBottomOf="@id/textAlarmConflict"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="6dp"
-        tools:visibility="visible"
-        tools:text="Wake me at 5:30 AM" />
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/white"
+                    android:inputType="textPersonName"
+                    android:imeOptions="actionDone" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnCompanionAfterAlarm"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        android:textSize="13sp"
-        android:textAllCaps="false"
-        android:minHeight="36dp"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        style="@style/Widget.MaterialComponents.Button.TextButton"
-        android:textColor="@color/text_secondary"
-        app:layout_constraintTop_toBottomOf="@id/btnUseDeviceAlarm"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="2dp"
-        tools:visibility="visible"
-        tools:text="Or ask me quietly at 6:05 AM" />
+            </com.google.android.material.textfield.TextInputLayout>
 
-    <TextView
-        android:id="@+id/textVoiceHint"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="@string/onboarding_voice_hint"
-        android:textSize="12sp"
-        android:textColor="@color/text_secondary"
-        android:lineSpacingMultiplier="1.3"
-        app:layout_constraintTop_toBottomOf="@id/btnCompanionAfterAlarm"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="16dp" />
+            <TextView
+                android:id="@+id/textAlarmLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/onboarding_alarm_label"
+                android:textSize="16sp"
+                android:textColor="@color/text_secondary"
+                app:layout_constraintTop_toBottomOf="@id/layoutName"
+                app:layout_constraintStart_toStartOf="parent"
+                android:layout_marginTop="24dp" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnChooseVoice"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textSize="14sp"
-        android:textAllCaps="false"
-        android:minHeight="40dp"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-        android:textColor="@color/white"
-        app:strokeColor="@color/accent"
-        app:layout_constraintTop_toBottomOf="@id/textVoiceHint"
-        app:layout_constraintBottom_toTopOf="@+id/btnStart"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintVertical_bias="0.0"
-        android:layout_marginTop="6dp"
-        android:layout_marginBottom="16dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSetTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="7:00 AM"
+                android:textSize="24sp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:textColor="@color/white"
+                app:strokeColor="@color/accent"
+                app:layout_constraintTop_toBottomOf="@id/textAlarmLabel"
+                app:layout_constraintStart_toStartOf="parent"
+                android:layout_marginTop="8dp" />
+
+            <!-- Both shown together, and only when the phone already has an earlier alarm set. -->
+            <TextView
+                android:id="@+id/textAlarmConflict"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:lineSpacingMultiplier="1.3"
+                app:layout_constraintTop_toBottomOf="@id/btnSetTime"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="12dp"
+                tools:visibility="visible"
+                tools:text="Your phone already rings at 6:00 AM." />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnUseDeviceAlarm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:textSize="14sp"
+                android:textAllCaps="false"
+                android:minHeight="40dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:textColor="@color/white"
+                app:strokeColor="@color/accent"
+                app:layout_constraintTop_toBottomOf="@id/textAlarmConflict"
+                app:layout_constraintStart_toStartOf="parent"
+                android:layout_marginTop="6dp"
+                tools:visibility="visible"
+                tools:text="Wake me at 5:30 AM" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCompanionAfterAlarm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                android:textSize="13sp"
+                android:textAllCaps="false"
+                android:minHeight="36dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:textColor="@color/text_secondary"
+                app:layout_constraintTop_toBottomOf="@id/btnUseDeviceAlarm"
+                app:layout_constraintStart_toStartOf="parent"
+                android:layout_marginTop="2dp"
+                tools:visibility="visible"
+                tools:text="Or ask me quietly at 6:05 AM" />
+
+            <TextView
+                android:id="@+id/textVoiceHint"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@string/onboarding_voice_hint"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:lineSpacingMultiplier="1.3"
+                app:layout_constraintTop_toBottomOf="@id/btnCompanionAfterAlarm"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                android:layout_marginTop="16dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnChooseVoice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textAllCaps="false"
+                android:minHeight="40dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:textColor="@color/white"
+                app:strokeColor="@color/accent"
+                app:layout_constraintTop_toBottomOf="@id/textVoiceHint"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintVertical_bias="0.0"
+                android:layout_marginTop="6dp" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </ScrollView>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnStart"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="56dp"
         android:text="@string/onboarding_start"
         android:textSize="18sp"
         app:backgroundTint="@color/accent"
         app:cornerRadius="28dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
         android:layout_marginBottom="32dp" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

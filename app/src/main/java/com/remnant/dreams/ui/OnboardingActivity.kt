@@ -86,7 +86,9 @@ class OnboardingActivity : AppCompatActivity() {
 
         binding = ActivityOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        EdgeToEdgeUtil.applySystemBarInsets(binding.root)
+        // Start is pinned below the scrolling setup steps, so the keyboard raised for the
+        // name has to push it up rather than sit on top of it.
+        EdgeToEdgeUtil.applySystemBarInsets(binding.root, includeIme = true)
 
         binding.btnSetTime.setOnClickListener {
             showTimePicker()

@@ -62,10 +62,11 @@ Short list, checked every time, before the bundle goes anywhere.
       phone and/or run a small-screen emulator profile (e.g. a 5" 720p / 320dp-wide
       device) and confirm the whole onboarding screen is visible: name field, alarm
       time, voice hint and voice button, and the "Start Capturing Dreams" button --
-      nothing clipped, cut off, or pushed under the navigation bar. The layout has no
-      ScrollView, so anything that overflows is simply unreachable and the app cannot
-      be set up at all. This is a required item on its own, not part of the
-      budget-device test below.
+      nothing clipped, cut off, or pushed under the navigation bar. The setup steps
+      scroll and Start is pinned below them, so what to check is that the scroll
+      actually reaches the voice button and that Start stays put with the keyboard
+      open. This is a required item on its own, not part of the budget-device test
+      below.
 - [ ] Privacy policy (`docs/PRIVACY_POLICY.md` and the hosted `docs/index.html`) still
       matches what the code does
 

@@ -32,13 +32,24 @@ object EdgeToEdgeUtil {
      * Pads the root view by the system bar + display cutout insets so content never
      * sits under the status bar, navigation bar, or a camera cutout. The root's own
      * background paints the inset areas, keeping the night-sky look full-bleed.
+     *
+     * Edge-to-edge means the window is no longer resized for the keyboard, so a screen
+     * with something pinned to the bottom passes [includeIme] to have the keyboard
+     * counted as well -- otherwise it opens straight over that pinned content.
      */
-    fun applySystemBarInsets(root: View) {
+    fun applySystemBarInsets(root: View, includeIme: Boolean = false) {
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            // The keyboard already covers the navigation bar, so it is the larger of the
+            // two that decides the bottom padding, never their sum.
+            val bottom = if (includeIme) {
+                maxOf(bars.bottom, insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+            } else {
+                bars.bottom
+            }
+            view.setPadding(bars.left, bars.top, bars.right, bottom)
             insets
         }
     }

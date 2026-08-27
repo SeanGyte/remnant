@@ -85,6 +85,17 @@ at bottom). Third-party tester-marketplace claims flagged as folklore.
 6. Not covered this pass: Play Billing one-off IAP declaration specifics —
    follow-up before submission.
 
+## DECISION (Sean, 27 Aug 2026): tester gating mode
+
+Gate the closed test with an **open-join Google Group**, not email lists.
+One opt-in link for the whole track; testers self-serve by joining the
+group first, and the link is deliberately pass-along-able (a tester's
+buddy can join too). Rationale: we need over-recruitment (15+ bodies so
+the 12-continuous floor never breaks), Reddit strangers won't tolerate an
+email-us-first step, and nothing in the build is secret — every
+freeloader is insurance. Escape hatch: close the group or swap to
+email-list gating in the console if it ever needs slamming shut.
+
 ## Action list before submission
 
 - Opt-in link + explicit tester click-through briefing.

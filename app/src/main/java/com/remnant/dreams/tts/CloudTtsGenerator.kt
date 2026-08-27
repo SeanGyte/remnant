@@ -23,15 +23,21 @@ class CloudTtsGenerator(private val context: Context) {
         promptType: String = PROMPT_DREAM
     ): File? = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$ENDPOINT?key=$apiKey")
+            val url = URL(ENDPOINT)
             val connection = url.openConnection() as HttpURLConnection
             connection.apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
+                // The key travels as a header rather than a ?key= query parameter: same
+                // authentication, but a URL ends up in logs, crash reports and proxies.
+                setRequestProperty("X-Goog-Api-Key", apiKey)
                 connectTimeout = 15_000
                 readTimeout = 15_000
                 doOutput = true
             }
+            // Declares which app is calling, so the key can be restricted to this app in
+            // the Cloud console. Silently skipped if the certificate can't be read.
+            GoogleApiIdentity.applyTo(connection, context)
 
             val body = JSONObject().apply {
                 put("input", JSONObject().put("text", text))

@@ -10,6 +10,8 @@
     <string name="onboarding_alarm_label">When do you wake up?</string>
     <!-- %1$s the phone's existing alarm time, %2$s the time picked here. -->
     <string name="onboarding_alarm_conflict">Your phone already rings at %1$s, and Remnant is set for %2$s -- well after you\'re up and moving, by which point the dream has usually gone. Waking you half an hour before your alarm catches it while it\'s still there. Remnant rings its own tone to do that, since it gets in first. The quieter option is to let your phone wake you and have Remnant ask straight afterwards, with no tone at all.</string>
+    <!-- %1$s the phone's existing alarm time, at or just before the time picked here. -->
+    <string name="onboarding_alarm_companion">Your phone already rings at %1$s, so it does the waking and Remnant stays quiet -- no tone of its own, just the question about the dream. Waking half an hour earlier catches the dream before the morning gets going, with Remnant ringing to do it.</string>
     <!-- %1$s the recommended wake time, half an hour before the phone's alarm. -->
     <string name="onboarding_alarm_wake_before">Wake me at %1$s</string>
     <!-- %1$s the time Remnant would quietly check in, just after the phone's alarm. -->

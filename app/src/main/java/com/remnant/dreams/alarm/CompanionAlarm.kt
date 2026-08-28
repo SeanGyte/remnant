@@ -9,14 +9,19 @@ import kotlin.math.abs
  *
  * Deliberately pure: the AlarmManager lookup stays at the call sites so the decision itself
  * is unit-testable. Three screens ask this same question (the scheduler, the journal banner
- * and the onboarding time step) and they must all answer it identically.
+ * and the onboarding time step) and they must all answer it identically. The caller reads
+ * the next alarm's owner as well as its time -- see AlarmScheduler.nextAlarm -- because who
+ * set the alarm, not when it lands, is what tells our alarm from the phone's.
  */
 object CompanionAlarm {
 
     /**
      * How close another alarm has to be to ours before we treat the two as the same alarm.
-     * getNextAlarmClock() reports Remnant's own alarm alongside everyone else's, so a match
-     * this tight is almost always us looking at ourselves.
+     *
+     * Only used when the alarm's owner cannot be established. It is a poor stand-in for
+     * knowing who set the alarm: a phone alarm set for the same minute as ours reads as our
+     * own, Remnant drops out of companion mode, and the user gets two alarms going off at
+     * once. Prefer the owner -- see [ownsAlarm].
      */
     const val SAME_ALARM_TOLERANCE_MS = 1000L
 
@@ -49,28 +54,45 @@ object CompanionAlarm {
     private const val MS_PER_MINUTE = 60_000L
 
     /**
+     * Whether the alarm owned by [owningPackage] is Remnant's own, or null when the owner
+     * could not be read and the caller has to fall back to comparing times.
+     *
+     * The owner is the package behind the alarm's show intent. It is the only thing that
+     * actually separates our alarm from the phone's: the times can be identical.
+     */
+    fun ownsAlarm(owningPackage: String?, ourPackage: String): Boolean? =
+        if (owningPackage == null) null else owningPackage == ourPackage
+
+    /**
      * Minutes that the phone's next alarm lands before [ourAlarmMs], or null when there is
      * no earlier alarm to ride along with: no alarm at all, our own alarm looking back at
      * us, or one that fires after ours.
+     *
+     * [nextAlarmIsOurs] comes from [ownsAlarm]. When it is known, it settles the question of
+     * whose alarm this is on its own -- an alarm belonging to another app counts as one to
+     * ride along with even when it is set for the same second as ours, which is the case
+     * that used to leave two alarms ringing over each other. Null means the owner could not
+     * be read, and only then does the time tolerance stand in for it.
      */
-    fun minutesBefore(nextAlarmMs: Long?, ourAlarmMs: Long): Long? {
+    fun minutesBefore(nextAlarmMs: Long?, ourAlarmMs: Long, nextAlarmIsOurs: Boolean? = null): Long? {
         if (nextAlarmMs == null) return null
-        if (abs(nextAlarmMs - ourAlarmMs) < SAME_ALARM_TOLERANCE_MS) return null
-        if (nextAlarmMs >= ourAlarmMs) return null
+        if (nextAlarmIsOurs == true) return null
+        if (nextAlarmIsOurs == null && abs(nextAlarmMs - ourAlarmMs) < SAME_ALARM_TOLERANCE_MS) return null
+        if (nextAlarmMs > ourAlarmMs) return null
         return (ourAlarmMs - nextAlarmMs) / MS_PER_MINUTE
     }
 
     /** Whether [nextAlarmMs] means Remnant should run as a companion rather than ring. */
-    fun isCompanion(nextAlarmMs: Long?, ourAlarmMs: Long): Boolean =
-        minutesBefore(nextAlarmMs, ourAlarmMs) != null
+    fun isCompanion(nextAlarmMs: Long?, ourAlarmMs: Long, nextAlarmIsOurs: Boolean? = null): Boolean =
+        minutesBefore(nextAlarmMs, ourAlarmMs, nextAlarmIsOurs) != null
 
     /**
      * Whether Remnant's check-in trails the phone's alarm by long enough that the user
      * should be told before they finish setting up, rather than reading about it in the
      * journal banner afterwards.
      */
-    fun isCheckInStale(nextAlarmMs: Long?, ourAlarmMs: Long): Boolean {
-        val gap = minutesBefore(nextAlarmMs, ourAlarmMs) ?: return false
+    fun isCheckInStale(nextAlarmMs: Long?, ourAlarmMs: Long, nextAlarmIsOurs: Boolean? = null): Boolean {
+        val gap = minutesBefore(nextAlarmMs, ourAlarmMs, nextAlarmIsOurs) ?: return false
         return gap > STALE_CHECK_IN_MINUTES
     }
 

@@ -1,7 +1,6 @@
 package com.remnant.dreams.ui
 
 import android.Manifest
-import android.app.AlarmManager
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -198,27 +197,48 @@ class OnboardingActivity : AppCompatActivity() {
 
     /**
      * Flags the thing the journal banner used to be the first to mention: the phone already
-     * rings earlier, so Remnant would sit out the actual wake-up and only ask about the
-     * dream a long time afterwards. Better said here, while the time is still being picked,
-     * than as a surprise once setup is done. Hidden entirely when there is no clash, so it
-     * costs nothing on the small screens this layout is tight on.
+     * rings by the picked time, so Remnant sits the actual wake-up out. Better said here,
+     * while the time is still being picked, than as a surprise once setup is done.
+     *
+     * Two shapes of that. A long gap -- the phone at 6:00 and Remnant at 7:02 -- is the one
+     * worth moving, so it gets both the explanation and the quiet alternative. A short one,
+     * including the phone ringing at exactly the time they picked, is a working companion
+     * setup and needs no rearranging; it just says plainly that Remnant will not ring, and
+     * leaves the earlier-wake recommendation there for anyone who wants the tone.
+     *
+     * Hidden entirely when there is no clash, so it costs nothing on the small screens this
+     * layout is tight on.
      */
     private fun updateAlarmConflict() {
-        val deviceAlarmMs = deviceAlarmTimeMs()
+        val deviceAlarm = deviceNextAlarm()
         val ourAlarmMs = nextOccurrenceOf(selectedHour, selectedMinute)
 
-        if (deviceAlarmMs == null || !CompanionAlarm.isCheckInStale(deviceAlarmMs, ourAlarmMs)) {
+        // An alarm of ours already on the phone is not something to ride along with, however
+        // close it lands to the time being picked.
+        if (deviceAlarm == null ||
+            !CompanionAlarm.isCompanion(deviceAlarm.triggerTimeMs, ourAlarmMs, deviceAlarm.isOurs)
+        ) {
             binding.textAlarmConflict.visibility = View.GONE
             binding.btnUseDeviceAlarm.visibility = View.GONE
             binding.btnCompanionAfterAlarm.visibility = View.GONE
             return
         }
 
-        binding.textAlarmConflict.text = getString(
-            R.string.onboarding_alarm_conflict,
-            formatClock(deviceAlarmMs),
-            formatClock(ourAlarmMs)
-        )
+        val deviceAlarmMs = deviceAlarm.triggerTimeMs
+        val stale = CompanionAlarm.isCheckInStale(deviceAlarmMs, ourAlarmMs, deviceAlarm.isOurs)
+
+        binding.textAlarmConflict.text = if (stale) {
+            getString(
+                R.string.onboarding_alarm_conflict,
+                formatClock(deviceAlarmMs),
+                formatClock(ourAlarmMs)
+            )
+        } else {
+            // The phone rings at or just before the time they picked, so Remnant would sit
+            // the wake-up out and ask quietly instead. Worth saying now rather than leaving
+            // them to wonder why no tone arrived.
+            getString(R.string.onboarding_alarm_companion, formatClock(deviceAlarmMs))
+        }
         // The recommendation leads, because a dream asked about after the household alarm
         // has already gone. The quiet companion setup stays available underneath it.
         binding.btnUseDeviceAlarm.text = getString(
@@ -231,19 +251,21 @@ class OnboardingActivity : AppCompatActivity() {
         )
         binding.textAlarmConflict.visibility = View.VISIBLE
         binding.btnUseDeviceAlarm.visibility = View.VISIBLE
-        binding.btnCompanionAfterAlarm.visibility = View.VISIBLE
+        // Already checking in about when the quiet option would put it -- offering the same
+        // thing again reads as a change that does nothing.
+        binding.btnCompanionAfterAlarm.visibility = if (stale) View.VISIBLE else View.GONE
     }
 
     /** Takes the recommendation: wake half an hour before the alarm the phone already has. */
     private fun useRecommendedWakeTime() {
-        val deviceAlarm = deviceAlarmTimeMs() ?: return
-        applyTime(CompanionAlarm.recommendedWakeBefore(deviceAlarm))
+        val deviceAlarm = deviceNextAlarm() ?: return
+        applyTime(CompanionAlarm.recommendedWakeBefore(deviceAlarm.triggerTimeMs))
     }
 
     /** Takes the quiet option: let the phone wake them, and ask straight afterwards. */
     private fun useDeviceAlarmTime() {
-        val deviceAlarm = deviceAlarmTimeMs() ?: return
-        applyTime(CompanionAlarm.checkInTimeAfter(deviceAlarm))
+        val deviceAlarm = deviceNextAlarm() ?: return
+        applyTime(CompanionAlarm.checkInTimeAfter(deviceAlarm.triggerTimeMs))
     }
 
     private fun applyTime(timeMs: Long) {
@@ -253,9 +275,12 @@ class OnboardingActivity : AppCompatActivity() {
         updateTimeDisplay()
     }
 
-    /** The phone's own next alarm, or null when nothing else is set to wake the user. */
-    private fun deviceAlarmTimeMs(): Long? =
-        getSystemService(AlarmManager::class.java)?.nextAlarmClock?.triggerTime
+    /**
+     * The phone's next alarm and who owns it, or null when nothing is set to wake the user.
+     * The owner matters here as much as it does at scheduling time: an alarm Remnant itself
+     * put on the phone is not one to plan around.
+     */
+    private fun deviceNextAlarm(): AlarmScheduler.NextAlarm? = AlarmScheduler.nextAlarm(this)
 
     /** The next time [hour]:[minute] comes round, matching how AlarmScheduler works it out. */
     private fun nextOccurrenceOf(hour: Int, minute: Int): Long =

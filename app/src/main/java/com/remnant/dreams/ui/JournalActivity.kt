@@ -1,6 +1,5 @@
 package com.remnant.dreams.ui
 
-import android.app.AlarmManager
 import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -186,14 +185,13 @@ class JournalActivity : AppCompatActivity() {
         val ourAlarmTime = ourAlarmCal.timeInMillis
 
         // Check for nearby alarms
-        val alarmManager = getSystemService(AlarmManager::class.java)
-        val nextTime = alarmManager.nextAlarmClock?.triggerTime
+        val nextAlarm = AlarmScheduler.nextAlarm(this)
 
-        if (nextTime != null) {
-            // Is there any alarm from another app before ours?
-            if (CompanionAlarm.isCompanion(nextTime, ourAlarmTime)) {
+        if (nextAlarm != null) {
+            // Is there an alarm belonging to another app by the time ours would fire?
+            if (CompanionAlarm.isCompanion(nextAlarm.triggerTimeMs, ourAlarmTime, nextAlarm.isOurs)) {
                 // Companion mode -- figure out the other alarm's time for display
-                val otherCal = Calendar.getInstance().apply { timeInMillis = nextTime }
+                val otherCal = Calendar.getInstance().apply { timeInMillis = nextAlarm.triggerTimeMs }
                 val otherHour = otherCal.get(Calendar.HOUR_OF_DAY)
                 val otherMinute = otherCal.get(Calendar.MINUTE)
                 val otherAmPm = if (otherHour < 12) "AM" else "PM"

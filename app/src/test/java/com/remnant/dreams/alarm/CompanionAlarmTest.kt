@@ -9,8 +9,10 @@ import org.junit.Test
 /**
  * Three screens ask whether the phone is already waking the user before Remnant does -- the
  * scheduler, the journal banner and the onboarding time step -- and they have to agree.
- * The awkward cases are the phone having no alarm at all, and getNextAlarmClock() handing
- * back Remnant's own alarm, which must never be mistaken for someone else's.
+ * The awkward cases are the phone having no alarm at all, getNextAlarmClock() handing back
+ * Remnant's own alarm, which must never be mistaken for someone else's, and the reverse:
+ * another app's alarm set for the same minute as ours, which must never be mistaken for
+ * our own -- that one cost a user two alarms ringing at 6am.
  */
 class CompanionAlarmTest {
 
@@ -40,8 +42,8 @@ class CompanionAlarmTest {
     @Test
     fun `our own alarm coming back to us is not a companion`() {
         // getNextAlarmClock() reports Remnant's alarm alongside everyone else's, so an exact
-        // match is us looking at ourselves -- treating it as a companion would silence the
-        // only alarm the user has.
+        // match with no owner to check is us looking at ourselves -- treating it as a
+        // companion would silence the only alarm the user has.
         assertNull(CompanionAlarm.minutesBefore(ours, ours))
         assertFalse(CompanionAlarm.isCompanion(ours, ours))
     }
@@ -57,6 +59,104 @@ class CompanionAlarmTest {
         val outside = ours - (CompanionAlarm.SAME_ALARM_TOLERANCE_MS + 1)
         assertEquals(0L, CompanionAlarm.minutesBefore(outside, ours))
         assertTrue(CompanionAlarm.isCompanion(outside, ours))
+    }
+
+    // --- whose alarm is it? ---
+
+    @Test
+    fun `an alarm from our own package is ours`() {
+        assertEquals(true, CompanionAlarm.ownsAlarm("com.remnant.dreams", "com.remnant.dreams"))
+    }
+
+    @Test
+    fun `an alarm from another package is not ours`() {
+        assertEquals(false, CompanionAlarm.ownsAlarm("com.sec.android.app.clockpackage", "com.remnant.dreams"))
+    }
+
+    @Test
+    fun `an owner we could not read is left undecided`() {
+        // Null is not "someone else" -- it means fall back to comparing times.
+        assertNull(CompanionAlarm.ownsAlarm(null, "com.remnant.dreams"))
+    }
+
+    @Test
+    fun `the debug build's own alarm is still ours`() {
+        // The debug build carries an applicationIdSuffix, so the package to compare against
+        // is the running one rather than a constant.
+        assertEquals(
+            true,
+            CompanionAlarm.ownsAlarm("com.remnant.dreams.debug", "com.remnant.dreams.debug")
+        )
+    }
+
+    // --- detection by owner rather than by clock ---
+
+    @Test
+    fun `another app's alarm at exactly our time is a companion`() {
+        // The 6am bug: the phone's clock and Remnant were both set for 6:00, the matching
+        // time read as our own alarm, Remnant rang anyway and the user got two alarms at
+        // once. Knowing the owner is what settles it.
+        assertEquals(0L, CompanionAlarm.minutesBefore(ours, ours, nextAlarmIsOurs = false))
+        assertTrue(CompanionAlarm.isCompanion(ours, ours, nextAlarmIsOurs = false))
+    }
+
+    @Test
+    fun `our own alarm at exactly our time is not a companion`() {
+        assertNull(CompanionAlarm.minutesBefore(ours, ours, nextAlarmIsOurs = true))
+        assertFalse(CompanionAlarm.isCompanion(ours, ours, nextAlarmIsOurs = true))
+    }
+
+    @Test
+    fun `our own alarm earlier than the time being checked is still not a companion`() {
+        // Re-picking a time during setup with our own alarm already on the phone: the owner
+        // decides, however far apart the two times are.
+        assertNull(CompanionAlarm.minutesBefore(minutesBeforeOurs(62), ours, nextAlarmIsOurs = true))
+        assertFalse(CompanionAlarm.isCompanion(minutesBeforeOurs(62), ours, nextAlarmIsOurs = true))
+    }
+
+    @Test
+    fun `another app's alarm after ours is still not a companion`() {
+        // Owner or no owner, an alarm we get in front of leaves Remnant ringing first.
+        assertNull(CompanionAlarm.minutesBefore(ours + 60_000L, ours, nextAlarmIsOurs = false))
+        assertFalse(CompanionAlarm.isCompanion(ours + 60_000L, ours, nextAlarmIsOurs = false))
+    }
+
+    @Test
+    fun `another app's alarm a moment after ours is not a companion`() {
+        val justAfter = ours + (CompanionAlarm.SAME_ALARM_TOLERANCE_MS - 1)
+        assertNull(CompanionAlarm.minutesBefore(justAfter, ours, nextAlarmIsOurs = false))
+    }
+
+    @Test
+    fun `another app's alarm a moment before ours is a companion`() {
+        // The tolerance is not applied once the owner is known, so a near-match no longer
+        // swallows someone else's alarm.
+        val justBefore = ours - (CompanionAlarm.SAME_ALARM_TOLERANCE_MS - 1)
+        assertEquals(0L, CompanionAlarm.minutesBefore(justBefore, ours, nextAlarmIsOurs = false))
+        assertTrue(CompanionAlarm.isCompanion(justBefore, ours, nextAlarmIsOurs = false))
+    }
+
+    @Test
+    fun `an unreadable owner falls back to the time heuristic`() {
+        // Some clock apps set no show intent to read an owner from. Behaviour there is the
+        // old behaviour -- no better, but no worse either.
+        assertNull(CompanionAlarm.minutesBefore(ours, ours, nextAlarmIsOurs = null))
+        assertFalse(CompanionAlarm.isCompanion(ours, ours, nextAlarmIsOurs = null))
+        assertEquals(62L, CompanionAlarm.minutesBefore(minutesBeforeOurs(62), ours, nextAlarmIsOurs = null))
+    }
+
+    @Test
+    fun `an alarm at the same time from another app is not worth flagging at setup`() {
+        // It is a companion, not a check-in that arrives long after the user got up, so the
+        // setup hint has nothing to move.
+        assertFalse(CompanionAlarm.isCheckInStale(ours, ours, nextAlarmIsOurs = false))
+    }
+
+    @Test
+    fun `our own alarm never makes the setup hint fire`() {
+        assertFalse(
+            CompanionAlarm.isCheckInStale(minutesBeforeOurs(62), ours, nextAlarmIsOurs = true)
+        )
     }
 
     // --- worth flagging during setup? ---

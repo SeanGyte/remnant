@@ -138,11 +138,13 @@ object AlarmScheduler {
      * The package name is only ever compared, never resolved to a label, icon or launch
      * intent -- those need a <queries> declaration from API 30 on, and this does not.
      *
-     * Worth knowing: getNextAlarmClock() reports one alarm, the soonest setAlarmClock()
-     * alarm from any app in this profile. Samsung's Find My Mobile, Modes and Routines,
-     * Reminder and Calendar all schedule alarm clocks of their own, so the alarm we ride
-     * along with is not always the one the user thinks of as their alarm. That was already
-     * true of the old behaviour and is not something identity fixes.
+     * getNextAlarmClock() reports one alarm, the soonest setAlarmClock() alarm from any app
+     * in this profile, and that is not the same thing as the user's wake alarm. Samsung's
+     * Find My Mobile, Modes and Routines, Reminder and Calendar all schedule alarm clocks of
+     * their own. Riding along with one of those meant Remnant went quiet for a wake-up that
+     * was never coming, so a foreign alarm from a package that is not a clock app is dropped
+     * here rather than reported -- see CompanionAlarm.isCompanionableAlarm. All three callers
+     * read the phone's alarm through this function, so they drop it together.
      */
     fun nextAlarm(context: Context): NextAlarm? {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return null
@@ -159,6 +161,11 @@ object AlarmScheduler {
             Log.w(TAG, "Failed to read the next alarm's owner: ${e.message}")
             null
         }
+        if (!CompanionAlarm.isCompanionableAlarm(owningPackage, context.packageName)) {
+            Log.d(TAG, "Next alarm belongs to $owningPackage, which is not a clock app -- ignoring")
+            return null
+        }
+
         return NextAlarm(info.triggerTime, CompanionAlarm.ownsAlarm(owningPackage, context.packageName))
     }
 

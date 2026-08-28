@@ -1,5 +1,6 @@
 package com.remnant.dreams.alarm
 
+import java.util.Locale
 import kotlin.math.abs
 
 /**
@@ -62,6 +63,109 @@ object CompanionAlarm {
      */
     fun ownsAlarm(owningPackage: String?, ourPackage: String): Boolean? =
         if (owningPackage == null) null else owningPackage == ourPackage
+
+    /**
+     * Clock and alarm apps, by package name, that a next-alarm entry can be trusted to mean
+     * somebody is being woken up.
+     *
+     * Needed because "the phone's next alarm" is not the same thing as "the user's wake
+     * alarm". getNextAlarmClock() reports the soonest setAlarmClock() alarm from any app,
+     * and plenty of non-clock apps set them: Samsung's Modes and Routines quietly adds one
+     * at the end of Sleep mode that never appears in the Clock app, and Find My Mobile,
+     * Reminder and Calendar have all been reported doing the same. Treating a phone-finder
+     * ping as the user's alarm silences Remnant for a wake-up that is never coming.
+     *
+     * The list is a shortcut, not the whole answer -- [isWakeAlarmPackage] falls back to
+     * reading the name. What it is really for is the clock apps the name cannot catch:
+     * Sony's alarm lives in com.sonyericsson.organizer, and the two big third-party alarm
+     * apps are named after sleeping rather than after clocks. Without those three spelled
+     * out here, their users would lose companion mode entirely.
+     *
+     * Package names verified against vendor listings and the debloat registries that track
+     * them (Universal Android Debloater NG, UIBloatwareRegistry) rather than recalled.
+     */
+    val CLOCK_PACKAGES = setOf(
+        // AOSP, and the OEMs that ship it unrenamed (Xiaomi/HyperOS, older Huawei/EMUI)
+        "com.android.deskclock",
+        "com.android.alarmclock",
+        // Google Clock -- also the stock clock on Motorola and Nothing
+        "com.google.android.deskclock",
+        "com.sec.android.app.clockpackage", // Samsung
+        "com.huawei.deskclock", // Huawei
+        "com.hihonor.deskclock", // Honor
+        "com.coloros.alarmclock", // OPPO / realme (ColorOS)
+        "com.oplus.alarmclock", // OPPO, newer builds
+        "com.oneplus.deskclock", // OnePlus (OxygenOS)
+        "com.android.BBKClock", // vivo / iQOO
+        "com.motorola.cn.deskclock", // Motorola, China ROM
+        "com.sonyericsson.organizer", // Sony Xperia -- no "clock" or "alarm" in the name
+        "com.lge.clock", // LG
+        "com.asus.deskclock", // Asus / ZenFone
+        "com.transsion.deskclock", // Tecno, Infinix, itel
+        "com.zui.deskclock", // Lenovo (ZUI)
+        "zte.com.cn.alarmclock", // ZTE
+        "cn.nubia.deskclock.preset", // nubia
+        "com.htc.android.worldclock", // HTC
+        "com.urbandroid.sleep", // Sleep as Android -- named for sleep, not for clocks
+        "droom.sleepIfUCan" // Alarmy -- likewise
+    )
+
+    /**
+     * Packages that read like a clock app by name but are not one, so the [CLOCK_NAME_HINTS]
+     * fallback must not let them through.
+     *
+     * com.qualcomm.qti.poweroffalarm is the one that matters: it is firmware plumbing that
+     * lets an alarm start a powered-off phone, it ships on most Qualcomm devices, and it has
+     * "alarm" sitting in the middle of its name. com.samsung.android.app.clockpack is a pack
+     * of clock faces.
+     */
+    private val NOT_CLOCK_PACKAGES = setOf(
+        "com.qualcomm.qti.poweroffalarm",
+        "com.samsung.android.app.clockpack"
+    )
+
+    /**
+     * What an unknown OEM's clock app almost always has in its package name. Matched
+     * case-insensitively, and as a substring so that "deskclock" counts.
+     */
+    private val CLOCK_NAME_HINTS = listOf("clock", "alarm")
+
+    /**
+     * Whether an alarm set by [owningPackage] is the kind of alarm a person wakes up to,
+     * and so the kind Remnant should stay quiet for.
+     *
+     * The allow-list decides first, then the name. The name check exists because the list
+     * cannot keep up with every OEM: a clock app nobody here has heard of still ought to put
+     * Remnant into companion mode, and getting that wrong means a second alarm going off at
+     * someone. An unrecognised package with neither word in it is left alone -- Remnant
+     * stays standalone and rings, which is the safe way to be wrong.
+     */
+    fun isWakeAlarmPackage(owningPackage: String): Boolean {
+        if (owningPackage in NOT_CLOCK_PACKAGES) return false
+        if (owningPackage in CLOCK_PACKAGES) return true
+        val lower = owningPackage.lowercase(Locale.ROOT)
+        return CLOCK_NAME_HINTS.any { hint -> hint in lower }
+    }
+
+    /**
+     * Whether an alarm owned by [owningPackage] is worth putting through the companion
+     * decision at all.
+     *
+     * Three things get through, and the two that are not clock apps are here on purpose:
+     *
+     *  - Our own alarm, so that [ownsAlarm] can rule it out on identity. Dropping it here
+     *    instead would look the same but lose the reason.
+     *  - An alarm with no readable owner, so the time-comparison fallback still stands.
+     *  - Anything [isWakeAlarmPackage] recognises as a clock.
+     *
+     * What does not get through is a foreign alarm from an app that has no business waking
+     * anybody -- and since getNextAlarmClock() only ever reports one alarm, that leaves
+     * nothing to ride along with, which is the correct answer: ring.
+     */
+    fun isCompanionableAlarm(owningPackage: String?, ourPackage: String): Boolean =
+        owningPackage == null ||
+            owningPackage == ourPackage ||
+            isWakeAlarmPackage(owningPackage)
 
     /**
      * Minutes that the phone's next alarm lands before [ourAlarmMs], or null when there is

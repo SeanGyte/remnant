@@ -19,6 +19,10 @@ class CompanionAlarmTest {
     private val ours = 1_700_000_000_000L
     private fun minutesBeforeOurs(minutes: Long) = ours - minutes * 60_000L
 
+    private companion object {
+        const val OUR_PACKAGE = "com.remnant.dreams"
+    }
+
     // --- detection ---
 
     @Test
@@ -87,6 +91,106 @@ class CompanionAlarmTest {
             true,
             CompanionAlarm.ownsAlarm("com.remnant.dreams.debug", "com.remnant.dreams.debug")
         )
+    }
+
+    // --- is the owner a clock app at all? ---
+
+    @Test
+    fun `the phone's own clock is a wake alarm`() {
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.sec.android.app.clockpackage"))
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.google.android.deskclock"))
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.android.deskclock"))
+    }
+
+    @Test
+    fun `Samsung's non-clock alarm schedulers are not wake alarms`() {
+        // The reason this check exists. Find My Mobile pings the phone, Modes and Routines
+        // adds one at the end of Sleep mode, and Reminder and Calendar set their own. Each
+        // one used to read as "the user is already being woken", which silenced Remnant's
+        // tone for a wake-up that was never coming.
+        assertFalse(CompanionAlarm.isWakeAlarmPackage("com.samsung.android.fmm"))
+        assertFalse(CompanionAlarm.isWakeAlarmPackage("com.samsung.android.app.routines"))
+        assertFalse(CompanionAlarm.isWakeAlarmPackage("com.samsung.android.app.reminder"))
+        assertFalse(CompanionAlarm.isWakeAlarmPackage("com.samsung.android.calendar"))
+    }
+
+    @Test
+    fun `an unknown package with clock in the name is a wake alarm`() {
+        // The list cannot keep up with every OEM, and a clock app we have never heard of
+        // still has to put Remnant into companion mode.
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.example.someoem.deskclock"))
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.example.someoem.alarms"))
+    }
+
+    @Test
+    fun `the name check ignores case`() {
+        // vivo ships com.android.BBKClock, so a case-sensitive substring would miss a
+        // shipping clock app.
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.android.BBKClock"))
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.example.MyAlarmApp"))
+    }
+
+    @Test
+    fun `clock apps that are not named after clocks are still wake alarms`() {
+        // Nothing about these names says "alarm", so the allow-list is the only thing
+        // keeping their users in companion mode.
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.sonyericsson.organizer"))
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("com.urbandroid.sleep"))
+        assertTrue(CompanionAlarm.isWakeAlarmPackage("droom.sleepIfUCan"))
+    }
+
+    @Test
+    fun `firmware that only sounds like an alarm app is not a wake alarm`() {
+        // Ships on most Qualcomm phones and has "alarm" sitting in the middle of its name,
+        // so the fallback would wave it straight through.
+        assertFalse(CompanionAlarm.isWakeAlarmPackage("com.qualcomm.qti.poweroffalarm"))
+        assertFalse(CompanionAlarm.isWakeAlarmPackage("com.samsung.android.app.clockpack"))
+    }
+
+    @Test
+    fun `an unrelated app is not a wake alarm`() {
+        assertFalse(CompanionAlarm.isWakeAlarmPackage("com.whatsapp"))
+        assertFalse(CompanionAlarm.isWakeAlarmPackage("com.spotify.music"))
+    }
+
+    // --- which alarms reach the companion decision ---
+
+    @Test
+    fun `a clock app's alarm reaches the companion decision`() {
+        assertTrue(
+            CompanionAlarm.isCompanionableAlarm("com.sec.android.app.clockpackage", ourPackage = OUR_PACKAGE)
+        )
+    }
+
+    @Test
+    fun `a phone-finder's alarm is dropped before the companion decision`() {
+        assertFalse(CompanionAlarm.isCompanionableAlarm("com.samsung.android.fmm", ourPackage = OUR_PACKAGE))
+    }
+
+    @Test
+    fun `our own alarm still reaches the companion decision`() {
+        // It has to, so ownsAlarm() can rule it out on identity rather than by name --
+        // Remnant's own package contains neither "clock" nor "alarm".
+        assertTrue(CompanionAlarm.isCompanionableAlarm(OUR_PACKAGE, ourPackage = OUR_PACKAGE))
+        assertFalse(CompanionAlarm.isWakeAlarmPackage(OUR_PACKAGE))
+    }
+
+    @Test
+    fun `an owner we could not read still reaches the companion decision`() {
+        // Unreadable is not the same as disqualified: dropping these would take away the
+        // time-comparison fallback that shipped before any of this, on exactly the devices
+        // that need it.
+        assertTrue(CompanionAlarm.isCompanionableAlarm(null, ourPackage = OUR_PACKAGE))
+    }
+
+    @Test
+    fun `an unreadable owner is left to the old time comparison unchanged`() {
+        // The whole point of letting a null owner through: behaviour past this gate is
+        // exactly what it was before the clock check existed.
+        assertTrue(CompanionAlarm.isCompanionableAlarm(null, ourPackage = OUR_PACKAGE))
+        assertNull(CompanionAlarm.ownsAlarm(null, OUR_PACKAGE))
+        assertEquals(62L, CompanionAlarm.minutesBefore(minutesBeforeOurs(62), ours, nextAlarmIsOurs = null))
+        assertNull(CompanionAlarm.minutesBefore(ours, ours, nextAlarmIsOurs = null))
     }
 
     // --- detection by owner rather than by clock ---

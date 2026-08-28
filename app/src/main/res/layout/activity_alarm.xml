@@ -20,6 +20,12 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="60dp" />
 
+    <!--
+        Status and hint sit in a packed chain between the app name and the button row rather
+        than centred on the whole screen. Centring on the parent put them wherever the middle
+        happened to be, which on a short landscape screen is on top of Dismiss. Bounded by the
+        button they can crowd it but never cover it, at any screen size.
+    -->
     <TextView
         android:id="@+id/textStatus"
         android:layout_width="wrap_content"
@@ -28,10 +34,13 @@
         android:textSize="20sp"
         android:textColor="@color/white"
         android:gravity="center"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textAppName"
+        app:layout_constraintBottom_toTopOf="@id/textCompanionHint"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintVertical_chainStyle="packed"
+        android:layout_marginTop="24dp"
+        app:layout_goneMarginBottom="16dp" />
 
     <!-- Companion mode: subtle listening indicator shown below status text -->
     <TextView
@@ -44,9 +53,11 @@
         android:gravity="center"
         android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/textStatus"
+        app:layout_constraintBottom_toTopOf="@id/btnDismiss"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="12dp" />
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="16dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnDismiss"

@@ -4,7 +4,9 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import com.remnant.dreams.data.PrefsManager
 import java.util.Calendar
@@ -27,12 +29,11 @@ object AlarmScheduler {
 
         val alarmManager = context.getSystemService(AlarmManager::class.java)
 
-        // Check permission on Android 12+
-        if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {
+        // Without the exact-alarm permission there is no alarm to set. Nothing is faked in
+        // its place: the journal banner reads the same permission back and says so, and
+        // ExactAlarmPermissionReceiver comes back through here the moment it is handed over.
+        if (!ExactAlarmPolicy.canSchedule(Build.VERSION.SDK_INT, exactAlarmsPermitted(context))) {
             Log.w(TAG, "Cannot schedule exact alarms -- permission not granted")
-            // DEFERRED: no re-arm UX yet. If the user revokes and later restores the
-            // exact-alarm permission, nothing prompts them and the alarm stays dead
-            // while the UI still says it's set. Needs a settings prompt / re-arm flow.
             return
         }
 
@@ -72,6 +73,38 @@ object AlarmScheduler {
             Log.e(TAG, "SecurityException scheduling alarm: ${e.message}")
         }
     }
+
+    /**
+     * Whether the system currently lets us set an exact alarm.
+     *
+     * Always true below [ExactAlarmPolicy.FIRST_REVOCABLE_SDK], where there is no permission
+     * to withhold -- and where canScheduleExactAlarms() does not exist to be called.
+     */
+    fun exactAlarmsPermitted(context: Context): Boolean {
+        if (!ExactAlarmPolicy.isPermissionRevocable(Build.VERSION.SDK_INT)) return true
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return true
+        return alarmManager.canScheduleExactAlarms()
+    }
+
+    /**
+     * Whether the user has an alarm switched on that is not actually set, because the
+     * exact-alarm permission has been taken away. The journal banner asks this so it can say
+     * so plainly instead of reporting an alarm that will never ring.
+     */
+    fun isBlockedByPermission(context: Context): Boolean = ExactAlarmPolicy.shouldWarn(
+        alarmEnabled = PrefsManager(context).alarmEnabled,
+        sdkInt = Build.VERSION.SDK_INT,
+        permissionGranted = exactAlarmsPermitted(context)
+    )
+
+    /**
+     * The system screen where the exact-alarm permission is handed back, aimed at Remnant's
+     * own entry rather than the whole list.
+     */
+    fun exactAlarmSettingsIntent(context: Context): Intent =
+        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+            data = Uri.parse("package:${context.packageName}")
+        }
 
     /**
      * The phone's next alarm as the companion logic needs to see it: when it fires, and

@@ -162,6 +162,20 @@ class JournalActivity : AppCompatActivity() {
             return
         }
 
+        // An alarm that is switched on but was never actually set, because the exact-alarm
+        // permission has been taken away. Saying "alarm at 6:00 AM" here would be a lie the
+        // user only finds out about by sleeping through it, so the banner says what is
+        // wrong and where to fix it, and tapping goes straight to that screen.
+        if (AlarmScheduler.isBlockedByPermission(this)) {
+            setModeStatus(
+                "Alarm is not set -- Remnant is not allowed to set alarms on this phone. " +
+                    "Tap to allow it, and the alarm goes back on by itself.",
+                R.color.error,
+                onTap = { openExactAlarmSettings() }
+            )
+            return
+        }
+
         val alarmHour = prefs.alarmHour
         val alarmMinute = prefs.alarmMinute
         val amPm = if (alarmHour < 12) "AM" else "PM"
@@ -222,11 +236,34 @@ class JournalActivity : AppCompatActivity() {
         )
     }
 
-    private fun setModeStatus(text: String, dotColorRes: Int) {
+    private fun setModeStatus(text: String, dotColorRes: Int, onTap: (() -> Unit)? = null) {
         binding.textModeStatus.text = text
         val dot = binding.modeIndicator.background
         if (dot is GradientDrawable) {
             dot.setColor(ContextCompat.getColor(this, dotColorRes))
+        }
+        // The banner is re-rendered on every resume, so the listener has to be cleared as
+        // well as set -- otherwise a banner that stops being a warning stays tappable.
+        binding.modeStatus.setOnClickListener(onTap?.let { tap -> View.OnClickListener { tap() } })
+        binding.modeStatus.isClickable = onTap != null
+    }
+
+    /**
+     * Opens the system screen that hands the exact-alarm permission back. Returning from it
+     * runs onResume(), which re-arms the alarm and re-renders the banner, so nothing here
+     * has to wait for a result.
+     */
+    private fun openExactAlarmSettings() {
+        try {
+            startActivity(AlarmScheduler.exactAlarmSettingsIntent(this))
+        } catch (_: Exception) {
+            // Some builds have no activity behind this intent. Better a plain sentence than
+            // a crash on the screen that was explaining a problem.
+            Toast.makeText(
+                this,
+                "Open Settings, find Remnant, and allow alarms and reminders.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 

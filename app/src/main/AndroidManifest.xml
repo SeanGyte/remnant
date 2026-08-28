@@ -77,6 +77,25 @@
             </intent-filter>
         </receiver>
 
+        <!--
+            Exact-alarm permission changes (API 31+). Re-arms an alarm that the permission
+            being taken away had left unset.
+
+            Exported for the same reason the boot and time receivers are: the sender is
+            system_server, and a manifest receiver that is not exported never hears from a
+            uid other than its own. Safe to expose, because the action is a protected
+            broadcast in AOSP's core manifest, so no other app can forge it, and the
+            receiver reads the real permission state back from AlarmManager rather than
+            trusting the intent.
+        -->
+        <receiver
+            android:name=".alarm.ExactAlarmPermissionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Dream Capture Service -->
         <service
             android:name=".alarm.DreamCaptureService"

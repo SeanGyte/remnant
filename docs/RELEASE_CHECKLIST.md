@@ -1,9 +1,9 @@
 # Remnant -- Release Checklist (Google Play)
 
-**Last updated:** 26 Aug 2026 (v1.2.0, versionCode 3)
+**Last updated:** 10 Sep 2026 (v1.2.1, versionCode 4)
 
-The AAB listed under DONE predates the 26 Aug privacy/code-review fixes. Rebuild it
-(`gradlew bundleRelease`) before any upload.
+The signed AAB at `app/build/outputs/bundle/release/app-release.aab` was rebuilt
+10 Sep 2026 as v1.2.1 with all fixes below included — current as of that date.
 
 Ordered path to launch. Three lanes: what is already done, what Moose can do on
 request, and what only Sean can do (identity, money, accounts -- always his call).
@@ -28,6 +28,29 @@ request, and what only Sean can do (identity, money, accounts -- always his call
       (local only -- both gitignored, certificate valid to 2053)
 - [x] Privacy policy written and hosted: https://seangyte.github.io/remnant/
 - [x] Store listing draft: `docs/STORE_LISTING.md`
+- [x] **10 Sep 2026 — privacy policy audit applied.** Policy (both copies) now
+      discloses: the Google Play Billing entitlement check on every launch (the
+      third automatic connection), Android Auto Backup of settings prefs to the
+      user's Google account (dreams excluded), the 7-day audio re-encode, the
+      companion-mode "Are you awake?" TTS phrase and app-identity headers, and
+      the full permission list including Internet. Hosted copy republishes from
+      `master:/docs` via GitHub Pages on push.
+- [x] **10 Sep 2026 — deletion made honest in code (v1.2.1).** A compression
+      backup (`<name>.m4a.bak`) could outlive its deleted entry, contradicting
+      the policy's "cannot be recovered". Fixed three ways: entry delete and both
+      retention passes now unlink the `.bak`, and the orphan sweep judges a
+      backup by whether any row still references its base recording. Tests added.
+- [x] `gradlew test` (172 unit tests) and `assembleDebug` pass; v1.2.1
+      (versionCode 4) signed AAB built 10 Sep 2026
+- [x] Data safety form answers drafted line-by-line: `docs/DATA_SAFETY_FORM.md`
+      (three judgement calls flagged inline for Sean)
+- [x] Store listing graphics rendered to `docs/play-assets/`: 512x512 icon and
+      1024x500 feature graphic in two variants — matching the current launcher
+      art, and a crescent-moon option. **Open decision for Sean:** the current
+      launcher vector is the Material Design artist's-palette icon (the XML
+      comment says "crescent moon" but the path is a palette — a placeholder
+      that stuck). The store icon must match the installed launcher icon, so
+      either ship palette everywhere or adopt the moon in-app before submission.
 
 ### Keystore notes (important, read once)
 

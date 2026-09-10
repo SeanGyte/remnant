@@ -122,7 +122,12 @@ class DreamDetailActivity : AppCompatActivity() {
         val current = dream ?: return
         lifecycleScope.launch {
             // Delete audio file
-            current.audioPath?.let { File(it).delete() }
+            current.audioPath?.let {
+                File(it).delete()
+                // The compression worker may hold a full copy at <path>.bak; the policy
+                // promises deletion removes the recording permanently, so it goes too.
+                File("$it.bak").delete()
+            }
             database.dreamDao().delete(current)
             finish()
         }

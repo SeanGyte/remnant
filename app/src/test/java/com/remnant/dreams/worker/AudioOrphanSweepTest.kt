@@ -118,13 +118,44 @@ class AudioOrphanSweepTest {
     // --- things in the directory that are not ours to delete ---
 
     @Test
-    fun `a compression backup is never swept`() {
+    fun `a compression backup is protected while any row references its recording`() {
         // AudioCompressionWorker moves the original to `<name>.m4a.bak` before renaming the
-        // compressed copy into its place, and no row ever points at that name. Between the two
-        // renames, and until a later pass restores it, the backup is the only copy there is.
+        // compressed copy into its place, and no row ever points at that name. While a row
+        // still references the base recording, the swap and restore passes need the backup,
+        // so it is judged by the recording it shadows and kept however old it gets.
+        val backup = snapshot("dream_20260601_033000.m4a.bak", 40L * 24 * 60 * minute)
+        val basePath = "$audioDir/dream_20260601_033000.m4a"
+
+        assertTrue(sweep(listOf(backup), listOf(basePath)).isEmpty())
+    }
+
+    @Test
+    fun `a compression backup nothing references any more is swept`() {
+        // Deleting an entry unlinks only the path the row held. If a compression pass had
+        // parked the original as `.bak` at that moment, the backup kept a full copy of the
+        // recording with no row, no retention pass, and no restore pass able to reach it --
+        // the policy says a deleted recording cannot be recovered, so the sweep takes it.
         val backup = snapshot("dream_20260601_033000.m4a.bak", 40L * 24 * 60 * minute)
 
+        assertEquals(listOf(backup.path), sweep(listOf(backup), emptyList()))
+    }
+
+    @Test
+    fun `a young unreferenced backup is left alone`() {
+        // Mid-swap, the backup exists for seconds while no row points at the base name yet
+        // in the directory listing race. The age threshold covers that window with a day to
+        // spare, same as it does for live captures.
+        val backup = snapshot("dream_20260612_022700.m4a.bak", 5 * minute)
+
         assertTrue(sweep(listOf(backup), emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `a row spelling the directory differently still protects a backup`() {
+        val backup = snapshot("dream_20260601_033000.m4a.bak", 40L * 24 * 60 * minute)
+        val rowPath = "/data/data/com.remnant.dreams/files/audio/dream_20260601_033000.m4a"
+
+        assertTrue(sweep(listOf(backup), listOf(rowPath)).isEmpty())
     }
 
     @Test

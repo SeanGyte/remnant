@@ -62,14 +62,22 @@ internal object AudioOrphanSweep {
     const val MIN_ORPHAN_AGE_MS = 24L * 60 * 60 * 1000
 
     /**
-     * Recordings are the only thing the sweep may remove.
+     * Recordings, and the compression worker's backups of recordings, are the only things the
+     * sweep may remove.
      *
      * AudioCompressionWorker parks the original as `<name>.m4a.bak` while it swaps a compressed
      * copy into place, and until that swap completes or a later pass restores it, the backup is
-     * the only surviving copy of the recording -- with no row pointing at it. Restricting the
-     * sweep to `.m4a` keeps those backups out of reach.
+     * the only surviving copy of the recording. No row ever points at the `.bak` name, so a
+     * backup is judged by the recording it shadows: while any row references `<name>.m4a` the
+     * backup is protected (the swap and restore passes still need it), but once nothing
+     * references the base recording -- the entry was deleted, or retention cleared its audio --
+     * the backup is unreachable by every other code path and would otherwise sit on disk
+     * forever, which is exactly what the privacy policy promises does not happen.
      */
     private const val AUDIO_EXTENSION = ".m4a"
+
+    /** Suffix AudioCompressionWorker appends when parking an original. */
+    private const val BACKUP_SUFFIX = ".bak"
 
     /**
      * The subset of [files] safe to delete: not referenced by any of [referencedPaths], and last
@@ -93,9 +101,15 @@ internal object AudioOrphanSweep {
 
         return files.filter { file ->
             val name = fileNameOf(file.path)
-            name.endsWith(AUDIO_EXTENSION, ignoreCase = true) &&
-                    file.path !in paths &&
-                    name !in names &&
+            // A backup stands or falls with the recording it shadows: strip the suffix and
+            // judge the base name, so `<name>.m4a.bak` is protected exactly while some row
+            // still references `<name>.m4a`.
+            val isBackup = name.endsWith(BACKUP_SUFFIX, ignoreCase = true)
+            val basePath = if (isBackup) file.path.dropLast(BACKUP_SUFFIX.length) else file.path
+            val baseName = if (isBackup) name.dropLast(BACKUP_SUFFIX.length) else name
+            baseName.endsWith(AUDIO_EXTENSION, ignoreCase = true) &&
+                    basePath !in paths &&
+                    baseName !in names &&
                     nowMillis - file.lastModifiedMillis >= MIN_ORPHAN_AGE_MS
         }
     }
@@ -181,6 +195,9 @@ class AudioCleanupWorker(
                     continue
                 }
             }
+            // Once the row stops referencing this path, a compression backup of it would be
+            // unreachable by the restore pass -- it must not outlive the recording.
+            File("$audioPath.bak").delete()
 
             // Update the database
             if (entry.transcription.trim() == TranscriptPlaceholders.NO_TRANSCRIPT_WITH_AUDIO) {
@@ -210,7 +227,10 @@ class AudioCleanupWorker(
         // they sit on disk with nothing referencing them.
         var audioDeleted = 0
         for (entry in dao.getEntriesWithAudioOlderThan(cutoff)) {
-            val file = File(entry.audioPath ?: continue)
+            val path = entry.audioPath ?: continue
+            // The row is about to go, taking the only reference to a compression backup with it.
+            File("$path.bak").delete()
+            val file = File(path)
             if (!file.exists()) continue
             if (file.delete()) {
                 audioDeleted++

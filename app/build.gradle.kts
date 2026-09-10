@@ -27,8 +27,8 @@ android {
         applicationId = "com.remnant.dreams"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
 
         buildConfigField("String", "GOOGLE_CLOUD_TTS_KEY", "\"${localProps.getProperty("GOOGLE_CLOUD_TTS_KEY", "")}\"")
     }

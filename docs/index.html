@@ -26,11 +26,11 @@
 </head>
 <body>
     <h1>Privacy Policy for Remnant: Voice Dream Journal</h1>
-    <p class="updated">Last updated: 26 August 2026</p>
+    <p class="updated">Last updated: 10 September 2026</p>
 
     <h2>Summary</h2>
     <p>Remnant is designed with privacy at its core. Your dreams are deeply personal &mdash; we treat them that way. Your voice recordings and transcriptions are stored on your device, and Remnant does not collect, store, or transmit your dream data.</p>
-    <p>Two things can leave your device without you having chosen it, and both are described in full below. First, your morning greeting is spoken by a cloud voice that is set up for you when you install the app, which means your first name and the greeting text are sent to Google's text-to-speech service unless you switch to your phone's own voice. Second, the audio handed to Android's speech recogniser for transcription may be processed by Google on devices without an offline language pack.</p>
+    <p>Three things can leave your device without you having chosen it, and all three are described in full below. First, your morning greeting is spoken by a cloud voice that is set up for you when you install the app, which means your first name and the greeting text are sent to Google's text-to-speech service unless you switch to your phone's own voice. Second, the audio handed to Android's speech recogniser for transcription may be processed by Google on devices without an offline language pack. Third, the app checks with Google Play on launch whether you have bought the Pro unlock, so Google Play sees that query against your Google account.</p>
 
     <h2>What Data Stays on Your Device</h2>
     <ul>
@@ -39,13 +39,14 @@
         <li><strong>Journal entries</strong> including dates, times, and any edits you make</li>
         <li><strong>App settings</strong> including your name, alarm time, and preferences</li>
     </ul>
-    <p>All of this data is stored locally on your Android device. Remnant does not upload it to any server.</p>
+    <p>All of this data is stored locally on your Android device. Remnant does not upload any of it to a server of ours &mdash; we do not have one.</p>
+    <p>One nuance worth stating plainly: Android's own backup service includes Remnant's <strong>settings</strong> (your name, alarm time, streak counts, and preferences) in the device backup to your personal Google account, the same backup that restores your apps when you move phones. Your dreams are excluded from it &mdash; voice recordings, transcriptions, and journal entries are deliberately left out of that backup, so they exist only on the device itself.</p>
 
     <h2>What Data Leaves Your Device</h2>
 
     <h3>Voice Prompt Generation (a cloud voice is the default)</h3>
     <p>Remnant greets you in the morning with a companion voice, and one of the cloud voices is set up for you when you install the app. This is on by default: you do not have to switch it on, and unless you change it, Remnant sends a short text string to Google Cloud Text-to-Speech to generate that audio.</p>
-    <p>That string is everything that is sent: your first name and a fixed greeting, for example "Good morning Sean, what did you dream about last night?" No dream content, recordings, or transcriptions are ever sent.</p>
+    <p>What is sent is your first name inside two fixed phrases &mdash; the morning greeting, for example "Good morning Sean, what did you dream about last night?", and companion mode's "Are you awake?" check &mdash; along with standard app-identity headers that tell Google the request comes from Remnant. No dream content, recordings, or transcriptions are ever sent.</p>
     <p>You can change it. The voice step during setup, and Settings &gt; Wake-up voice at any time, let you preview the other cloud voices or switch to <strong>your phone's own voice</strong>. With your phone's own voice selected, Remnant makes no text-to-speech request at all, and any cloud audio it had cached is deleted.</p>
     <p>The generated audio is cached on your device, so the request only happens when you change your name or your voice.</p>
 
@@ -54,11 +55,14 @@
     <p>That request is a preference, not a guarantee. If your device has no offline language pack installed for your language, Android's speech service may process the audio on Google's servers instead. Google's privacy policy applies to what happens there, and Remnant cannot prevent or detect it. You can install the offline language pack in your Android settings (under voice input or speech recognition) to keep transcription fully on-device.</p>
     <p>Remnant itself never uploads recordings or transcriptions anywhere.</p>
 
+    <h3>Google Play Billing (the Pro unlock)</h3>
+    <p>Remnant offers a one-time Pro purchase, handled entirely by Google Play. When the app starts, it asks Google Play whether your account owns the unlock, so a purchase query tied to your Google account reaches Google on every launch &mdash; that is how your purchase survives a reinstall or a new phone. Remnant never sees or stores your payment details; Google Play processes the payment and simply tells the app "owned" or "not owned". Google Play's own terms and privacy policy govern that transaction.</p>
+
     <h2>What We Do NOT Do</h2>
     <ul>
         <li>We do not collect analytics or usage data</li>
         <li>We do not serve advertisements</li>
-        <li>We do not sell or share your data, and we do not transmit it to third parties beyond the two cases described above</li>
+        <li>We do not sell or share your data, and we do not transmit it to third parties beyond the three cases described above</li>
         <li>We do not require an account or login</li>
         <li>We do not use tracking pixels, cookies, or fingerprinting</li>
         <li>We do not access your contacts, photos, location, or any data unrelated to the app's function</li>
@@ -68,16 +72,18 @@
     <p>Remnant requests only the permissions necessary to function:</p>
     <ul>
         <li><strong>Microphone</strong> &mdash; to record your voice when capturing dreams</li>
+        <li><strong>Internet</strong> &mdash; solely for the cloud voice and the Google Play purchase check described above; recordings and transcriptions never travel over it</li>
         <li><strong>Notifications</strong> &mdash; for alarm alerts and weekly recaps</li>
         <li><strong>Exact Alarms</strong> &mdash; to schedule your wake-up alarm reliably</li>
         <li><strong>Foreground Service</strong> &mdash; to keep the recording session active while capturing, and to sound the alarm if you have switched notifications off</li>
         <li><strong>Boot Completed</strong> &mdash; to reschedule your alarm after device restarts</li>
+        <li><strong>Housekeeping</strong> &mdash; staying awake during capture (wake lock), vibrating for the alarm, showing the full-screen alarm, and asking you once to exempt the app from battery optimisation so the alarm fires reliably</li>
     </ul>
 
     <h2>Data Retention</h2>
     <p>You control how long your data is kept:</p>
     <ul>
-        <li><strong>Audio recordings:</strong> Configurable retention (7, 30, 90 days, or forever)</li>
+        <li><strong>Audio recordings:</strong> Configurable retention (7, 30, 90 days, or forever). To save space, recordings older than 7 days are also re-encoded on the device to a smaller, lower-quality copy; the original is not kept</li>
         <li><strong>Transcriptions:</strong> Configurable retention (90, 365 days, or forever)</li>
         <li><strong>Deleting entries:</strong> You can delete any individual dream entry at any time, which removes both the transcription and audio file permanently</li>
     </ul>
